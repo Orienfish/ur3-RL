@@ -20,7 +20,7 @@ import sys
 import random
 import numpy as np
 from collections import deque
-import pycontrol as ur
+# import pycontrol as ur
 import trainenv as env
 from ctypes import *
 import matplotlib.pyplot as plt
@@ -35,9 +35,9 @@ IMAGE_PATH = ['/home/robot/RL/grp1/']# ,'/home/robot/RL/grp2/','/home/robot/RL/g
 #   '/home/robot/RL/grp4/', '/home/robot/RL/grp5/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-LOG_DIR = "/tmp/logdir/train5"
+LOG_DIR = "/tmp/logdir/train9"
 READ_NETWORK_DIR = "saved_networks" # not use, from scratch
-SAVE_NETWORK_DIR = "saved_networks"
+SAVE_NETWORK_DIR = "saved_networks_new"
 # used in pre-process the picture
 RESIZE_WIDTH = 320
 RESIZE_HEIGHT = 320
@@ -200,17 +200,17 @@ def trainNetwork(s, angle, action, step, readout):
             for l in range(len(train_env)):
                 init_angle, init_img_path = train_env[l].reset()
                 rAll = 0 # total reward clear
-                step = 0
+                
                 # generate the first state, a_past is 0
             	img_t = cv2.imread(init_img_path)
             	img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
             	s_t = np.stack((img_t, img_t, img_t), axis=2)
             	angle_t = np.stack((init_angle, init_angle, init_angle), axis=0)
                 action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-        
+        	step_t = [0.]
             	# start one episode
             	while True:
-                	readout_t = readout.eval(feed_dict={s:[s_t], angle:[angle_t]})[0]
+                	readout_t = readout.eval(feed_dict={s:[s_t], angle:[angle_t], action:[action_t], step:[step_t]})[0]
                		action_index = 0
                 	# epsilon-greedy
                 	if random.random() <= epsilon:
@@ -227,7 +227,7 @@ def trainNetwork(s, angle, action, step, readout):
             	    		epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
                 
             		# run the selected action and observe next state and reward
-            		angle_new, img_path_t1, r_t, terminal, cur_step = train_env[l].step(a_input, t, EXPLORE)
+            		angle_new, img_path_t1, r_t, terminal, step_t1 = train_env[l].step(a_input, t, EXPLORE)
 
                 	# for debug
                 	# print(angle_t1, img_path_t1)
@@ -240,8 +240,9 @@ def trainNetwork(s, angle, action, step, readout):
             		s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
             		angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
                         action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
+			step_t1 = [step_t1]
             		# store the transition into D
-            		D.append((s_t, angle_t, action_t, a_t, r_t, s_t1, angle_t1, action_t1, terminal, cur_step))
+            		D.append((s_t, angle_t, action_t, step_t, a_t, r_t, s_t1, angle_t1, action_t1, step_t1, terminal))
             		if len(D) > REPLAY_MEMORY:
            	    		D.popleft()
 
@@ -253,18 +254,19 @@ def trainNetwork(s, angle, action, step, readout):
             	    		# get the batch variables
             	    		s_j_batch = [d[0] for d in minibatch]
                     		angle_j_batch = [d[1] for d in minibatch]
-                            action_j_batch = [d[2] for d in minibatch] 
-            	    		a_batch = [d[3] for d in minibatch]
-            	    		r_batch = [d[4] for d in minibatch]
-            	    		s_j1_batch = [d[5] for d in minibatch]
-            	    		angle_j1_batch = [d[6] for d in minibatch]
-                            action_j1_batch = [d[7] for d in minibatch]
-                            cur_step_batch = [d[9] for d in minibatch]
+                            	action_j_batch = [d[2] for d in minibatch]
+				step_j_batch = [d[3] for d in minibatch] 
+            	    		a_batch = [d[4] for d in minibatch]
+            	    		r_batch = [d[5] for d in minibatch]
+            	    		s_j1_batch = [d[6] for d in minibatch]
+            	    		angle_j1_batch = [d[7] for d in minibatch]
+                            	action_j1_batch = [d[8] for d in minibatch]
+                            	step_j1_batch = [d[9] for d in minibatch]
 
             	    		y_batch = [] # y is TD target
-            	    		readout_j1_batch = readout.eval(feed_dict = {s : s_j1_batch, angle : angle_j1_batch, action : action_j1_batch})
+            	    		readout_j1_batch = readout.eval(feed_dict = {s:s_j1_batch, angle:angle_j1_batch, action:action_j1_batch, step:step_j1_batch})
             	    		for k in range(len(minibatch)):
-                			terminal_sample = minibatch[k][8]
+                			terminal_sample = minibatch[k][10]
                 			# if terminal, only equals reward
                 			if terminal_sample:
                 	    			y_batch.append(r_batch[k])
@@ -285,10 +287,10 @@ def trainNetwork(s, angle, action, step, readout):
                 				a : a_batch,
                 				s : s_j_batch,
                         			angle : angle_j_batch,
+						action : action_j_batch,
+						step : step_j_batch,
                                     		success : success_cnt,
-                                    		total : total_cnt,
-                                            action : action_j_batch,
-                                            step : cur_step_batch}
+                                    		total : total_cnt}
                 			)
                 			train_writer.add_summary(summary_str, t) # write cost to record
             	    		else:
@@ -297,19 +299,19 @@ def trainNetwork(s, angle, action, step, readout):
                 				a : a_batch,
                 				s : s_j_batch,
                         			angle: angle_j_batch,
+						action : action_j_batch,
+						step : step_j_batch,
                                     		success : success_cnt,
-                                    		total : total_cnt,
-                                            action : action_j_batch,
-                                            step : cur_step_batch}
+                                    		total : total_cnt}
                 			)
 
             		# update the old values
             		s_t = s_t1
                 	angle_t = angle_t1
 			action_t = action_t1
+			step_t = step_t1
             		t += 1    # total time steps
                 	rAll += r_t
-           		step += 1 # = steps number in this episode
     
             		# save progress
             		if t % NETWORK_RECORD_STEP == 0:
@@ -325,7 +327,7 @@ def trainNetwork(s, angle, action, step, readout):
             			state = "train" 
            
             		print("EPISODE", i, "/ TIMESTEP", t, "/ GRP", train_env[l].dict_path, "/ STATE", state, \
-            			"/ EPSILON", epsilon, "/ CURRENT ANGLE", train_env[l].cur_state, \
+            			"/ EPSILON", epsilon, "/ CURRENT ANGLE", train_env[l].cur_state, "/ STEP", step_t, \
                     		"/ ACTION", a_input, "/ REWARD", r_t, "/ Q_MAX %e" % np.max(readout_t))
             		print(readout_t)
                 	# time.sleep(0.3)
@@ -341,14 +343,14 @@ def trainNetwork(s, angle, action, step, readout):
             			txtData = str(rAll) + '\n'
             			f.write(txtData)
             		with open("step_cnt.txt", 'w') as f:
-            			txtData = str(step) + '\n'
+            			txtData = str(step_t[0]) + '\n'
             			f.write(txtData)
             	elif i % REWARD_RECORD_STEP == 0:
             		with open("total_reward.txt", 'a+') as f:
                     		txtData = str(rAll) + '\n'
                     		f.write(txtData)
                 	with open("step_cnt.txt", 'a+') as f:
-                    		txtData = str(step) + '\n'
+                    		txtData = str(step_t[0]) + '\n'
                     		f.write(txtData)
             	i += 1 # update num of episodes
         
