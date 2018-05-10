@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 PATH = os.path.split(os.path.realpath(__file__))[0]
 # IMAGE_PATH = '/home/robot/RL/grp1'
 CHANGE_POINT_RANGE_FINAL = 1.1
-CHANGE_POINT_RANGE_INITIAL = 5.
-TERMINAL_EXTRA_RANGE_INITIAL = 20.
+CHANGE_POINT_RANGE_INITIAL = 1.1
+TERMINAL_EXTRA_RANGE_INITIAL = 0.
 SUCCESS_REWARD = 1000
 FAILURE_REWARD = -100
 POSITIVE_REWARD_STANDARD = 1
@@ -25,10 +25,10 @@ NEGATIVE_REWARD_STANDARD = -0.1
 MAX_STEPS = 100
 # maximum and minimum limitations, a little different from collectenv.py
 # only part of the data is used: from 150.jpg to 180.jpg
-MAX_ANGLE = 99.9
-MIN_ANGLE = 0.0
-MIN_ANGLE_LIMIT = 0.3
-MAX_ANGLE_LIMIT = 99.6
+MAX_ANGLE = 54.0
+MIN_ANGLE = 45.0
+MIN_ANGLE_LIMIT = 45.3
+MAX_ANGLE_LIMIT = 53.7
 # actions
 COARSE_POS = 0.3*9
 FINE_POS = 0.3
@@ -80,7 +80,8 @@ class FocusEnv(): # one class for one folder
 	# special case #3
 	if self.cur_step >= MAX_STEPS:
 	    # self.reset(self.dict_path, self.angle_path)
-	    next_state = round(self.cur_state + input_action, 2)
+	    next_state = self.cur_state + input_action
+	    next_state = round(next_state, 2)
 	    next_image_path = self.dic[next_state]
 	    return next_state, next_image_path, FAILURE_REWARD, True
 
@@ -127,7 +128,8 @@ class FocusEnv(): # one class for one folder
 	    	reward = POSITIVE_REWARD_STANDARD
 	# calculate the reward
 	# reward = self.reward_multiply(reward) # calculate the multiply
-	next_state = round(self.cur_state + input_action, 2)
+	next_state = self.cur_state + input_action
+	next_state = round(next_state, 2)
 	next_image_path = self.dic[next_state]
 	self.cur_state = next_state # state transfer
 	return next_state, next_image_path, reward, False
@@ -149,12 +151,12 @@ class FocusEnv(): # one class for one folder
     '''
     def terminal_angle_determine(self, time_step, EXPLORE):
 	# after the EXPLORE times should reach the final value
-	if self.extra_range > 0:
+	if self.extra_range >= 0:
 		self.extra_range -= TERMINAL_EXTRA_RANGE_INITIAL / EXPLORE
 		self.terminal_angle_t_low = round(self.terminal_angle_low - self.extra_range, 2)
 		self.terminal_angle_t_high = round(self.terminal_angle_high + self.extra_range, 2)
 		print("terminal:", self.extra_range, self.terminal_angle_t_low, self.terminal_angle_t_high)
-	if self.change_point_range > CHANGE_POINT_RANGE_FINAL:
+	if self.change_point_range >= CHANGE_POINT_RANGE_FINAL:
 		self.change_point_range -= (CHANGE_POINT_RANGE_INITIAL - CHANGE_POINT_RANGE_FINAL) / EXPLORE
 		self.change_point_t_low = round(self.terminal_angle_t_low - self.change_point_range, 2)
 		self.change_point_t_high = round(self.terminal_angle_t_high + self.change_point_range, 2)
@@ -181,7 +183,8 @@ class FocusEnv(): # one class for one folder
 	# special case #3
 	if self.cur_step >= MAX_STEPS:
 	    # self.reset(self.dict_path, self.angle_path)
-	    next_state = round(self.cur_state + input_action, 2)
+	    next_state = self.cur_state + input_action
+	    next_state = round(next_state, 2)
 	    next_image_path = self.dic[next_state]
 	    return next_state, next_image_path, True, False
 
@@ -196,7 +199,8 @@ class FocusEnv(): # one class for one folder
 	    	return self.cur_state, self.dic[self.cur_state], True, False
 
 	# get the next state, no need to calculate reward
-	next_state = round(self.cur_state + input_action, 2)
+	next_state = self.cur_state + input_action
+	next_state = round(next_state, 2)
 	next_image_path = self.dic[next_state]
 	self.cur_state = next_state # state transfer
 	return next_state, next_image_path, False, False
