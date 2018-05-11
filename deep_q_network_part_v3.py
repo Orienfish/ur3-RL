@@ -21,7 +21,7 @@ import random
 import numpy as np
 from collections import deque
 # import pycontrol as ur
-import trainenv_angle_part_v1 as env
+import trainenv_angle_part_v2 as env
 from ctypes import *
 import matplotlib.pyplot as plt
 import time
@@ -36,10 +36,13 @@ IMAGE_PATH = ['/home/robot/RL/grp1_part/']# ,'/home/robot/RL/grp2/','/home/robot
 TEST_PATH = '/home/robot/RL/grp1_part/'
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "v1"
+VERSION = "v3"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 READ_NETWORK_DIR = "saved_networks" # not use, from scratch
 SAVE_NETWORK_DIR = "saved_networks_part_" + VERSION
+# if directory does not exist, new it
+if not os.path.isdir(os.path.join(PATH, SAVE_NETWORK_DIR)):
+	os.makedirs(os.path.join(PATH, SAVE_NETWORK_DIR))
 FILE_SUCCESS = "success_rate_" + VERSION + ".txt"
 FILE_REWARD = "total_reward_" + VERSION + ".txt"
 FILE_STEP = "step_cnt_" + VERSION + ".txt"
@@ -53,12 +56,12 @@ ACTION_NORM = 2.7
 ACTIONS = 5 # number of valid actions
 GAMMA = 0.99 # in DQN. decay rate of past observations
 PAST_FRAME = 3 # how many frame in one state
-LEARNING_RATE = 0.001 # parameter in the optimizer
+LEARNING_RATE = 0.0001 # parameter in the optimizer
 NUM_TRAINING_STEPS = 50000 # times of episodes in one folder
 REPLAY_MEMORY = 500 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
 OBSERVE = 1000. # timesteps to observe before training
-EXPLORE = 20000. # frames over which to anneal epsilon
+EXPLORE = 40000. # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.1 # starting value of epsilon
 COST_RECORD_STEP = 100
@@ -115,21 +118,21 @@ def createNetwork():
     action = tf.placeholder("float", [None, PAST_FRAME])
 
     # hidden layers
-    h_conv1 = tf.nn.relu(conv2d(s, W_conv1, 4) + b_conv1)
+    h_conv1 = tf.tanh(conv2d(s, W_conv1, 4) + b_conv1)
     h_pool1 = max_pool_2x2(h_conv1)
 
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2, 2) + b_conv2)
+    h_conv2 = tf.tanh(conv2d(h_pool1, W_conv2, 2) + b_conv2)
     h_pool2 = max_pool_2x2(h_conv2)
 
-    h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3, 1) + b_conv3)
+    h_conv3 = tf.tanh(conv2d(h_pool2, W_conv3, 1) + b_conv3)
     h_pool3 = max_pool_2x2(h_conv3)
 
     h_pool3_flat = tf.reshape(h_pool3, [-1, 400])
 
-    h_fc1 = tf.nn.relu(tf.matmul(h_pool3_flat, W_fc1) + b_fc1)
+    h_fc1 = tf.tanh(tf.matmul(h_pool3_flat, W_fc1) + b_fc1)
     h_fc1_add = tf.concat([h_fc1, action], 1)
     
-    h_fc2 = tf.nn.relu(tf.matmul(h_fc1_add, W_fc2) + b_fc2)
+    h_fc2 = tf.tanh(tf.matmul(h_fc1_add, W_fc2) + b_fc2)
     # readout layer
     readout = tf.matmul(h_fc2, W_fc3) + b_fc3
 
@@ -153,7 +156,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
         tf.summary.scalar('cost', cost)
     # define training step
     with tf.name_scope('train'): 
-        train_step = tf.train.AdamOptimizer(LEARNING_RATE).minimize(cost)
+        train_step = tf.train.GradientDescentOptimizer(LEARNING_RATE).minimize(cost)
 
     '''
     Training Preparations
@@ -169,7 +172,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
     '''
     # saving and loading networks
     saver = tf.train.Saver()
-# This file is the dqn reinforcement learning.
+    
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -200,7 +203,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
         action_space = train_env[0].actions
 
         # This file is the dqn reinforcement learning.
-# start
+        # start
         while t < NUM_TRAINING_STEPS:
             # one episode in each training environment
             for l in range(len(train_env)):

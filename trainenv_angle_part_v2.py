@@ -22,8 +22,7 @@ MAX_STEPS = 30
 # only part of the data is used: from 150.jpg to 180.jpg
 MAX_ANGLE = 54.0
 MIN_ANGLE = 45.0
-MIN_ANGLE_LIMIT = 45.3
-MAX_ANGLE_LIMIT = 53.7
+
 # actions
 COARSE_POS = 0.3*9
 FINE_POS = 0.3
@@ -42,7 +41,7 @@ class FocusEnv(): # one class for one folder
 	self.import_angle()
 
     def reset(self): # reset starts a new episode, never change DICT_PATH and ANGLE_LIMIT_PATH
-    # reset the starting state
+        # reset the starting state
 	# index = int(random.random()*len(self.dic.keys())) # randomly initialized
 	# start from 0
 	self.cur_state = MIN_ANGLE # self.dic.keys()[index] 
@@ -62,28 +61,24 @@ class FocusEnv(): # one class for one folder
     		terminal - True or False
     '''
     def step(self, input_action): # action is the angle to move
-    	self.cur_step = self.cur_step + 1
-    	# special case #1
-    	if self.cur_state + input_action > MAX_ANGLE_LIMIT:
-    	    return MAX_ANGLE, self.dic[MAX_ANGLE], FAILURE_REWARD + self.get_reward(MAX_ANGLE), True
-    	# special case #2
-    	if self.cur_state + input_action < MIN_ANGLE_LIMIT:
-    	    return MIN_ANGLE, self.dic[MIN_ANGLE], FAILURE_REWARD + self.get_reward(MIN_ANGLE), True
-	# special case #3
+       	self.cur_step = self.cur_step + 1
+	next_state = self.cur_state + input_action
+        next_state = round(next_state, 2)
+        next_image_path = self.dic[next_state]
+        self.cur_state = next_state # state transfer
+
+    	# special termination
+    	if next_state > MAX_ANGLE or next_state < MIN_ANGLE:
+    	    return next_state, next_image_path, FAILURE_REWARD + self.get_reward(next_state), True
+
+	# special case
 	if self.cur_step >= MAX_STEPS:
-	    next_state = self.cur_state + input_action
-	    next_state = round(next_state, 2)
-	    next_image_path = self.dic[next_state]
 	    # check the final state, set the terminal reward regarding the final angle
 	    terminal_reward = FAILURE_REWARD
 	    if next_state >= self.terminal_angle_low and next_state <= self.terminal_angle_high:
 		terminal_reward = SUCCESS_REWARD
 	    return next_state, next_image_path, terminal_reward + self.get_reward(next_state), True
 
-	next_state = self.cur_state + input_action
-	next_state = round(next_state, 2)
-	next_image_path = self.dic[next_state]
-	self.cur_state = next_state # state transfer
 	return next_state, next_image_path, self.get_reward(next_state), False
 
     def import_angle(self):
@@ -118,27 +113,23 @@ class FocusEnv(): # one class for one folder
     '''
     def test_step(self, input_action): # action is the angle to move
     	self.cur_step = self.cur_step + 1
-    	# special case #1
-    	if self.cur_state + input_action > MAX_ANGLE_LIMIT:
-    	    return MAX_ANGLE, self.dic[MAX_ANGLE], True, False
-    	# special case #2
-    	if self.cur_state + input_action < MIN_ANGLE_LIMIT:
-    	    return MIN_ANGLE, self.dic[MIN_ANGLE], True, False
-	# special case #3
+
+    	# get the next state, no need to calculate reward
+	next_state = self.cur_state + input_action
+	next_state = round(next_state, 2)
+	next_image_path = self.dic[next_state]
+    	self.cur_state = next_state # state transfer
+        
+	# special termination
+    	if next_state > MAX_ANGLE or next_state < MIN_ANGLE:
+    	    return next_state, next_image_path, True, False
+	# special case
 	if self.cur_step >= MAX_STEPS:
-	    next_state = self.cur_state + input_action
-	    next_state = round(next_state, 2)
-	    next_image_path = self.dic[next_state]
 	    # check for the final result: success or not
 	    if next_state >= self.terminal_angle_low and next_state <= self.terminal_angle_high:
 	    	return next_state, next_image_path, True, True
 	    return next_state, next_image_path, True, False
 
-	# get the next state, no need to calculate reward
-	next_state = self.cur_state + input_action
-	next_state = round(next_state, 2)
-	next_image_path = self.dic[next_state]
-	self.cur_state = next_state # state transfer
 	return next_state, next_image_path, False, False
     
     '''

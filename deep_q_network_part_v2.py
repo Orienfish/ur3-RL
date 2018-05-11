@@ -46,6 +46,8 @@ FILE_STEP = "step_cnt_" + VERSION + ".txt"
 # used in pre-process the picture
 RESIZE_WIDTH = 320
 RESIZE_HEIGHT = 320
+# normalize the action
+ACTION_NORM = 2.7
 
 # parameters used in training
 ACTIONS = 5 # number of valid actions
@@ -53,7 +55,7 @@ GAMMA = 0.99 # in DQN. decay rate of past observations
 PAST_FRAME = 3 # how many frame in one state
 LEARNING_RATE = 0.001 # parameter in the optimizer
 NUM_TRAINING_STEPS = 50000 # times of episodes in one folder
-REPLAY_MEMORY = 1000 # number of previous transitions to remember
+REPLAY_MEMORY = 500 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
 OBSERVE = 1000. # timesteps to observe before training
 EXPLORE = 20000. # frames over which to anneal epsilon
@@ -63,8 +65,9 @@ COST_RECORD_STEP = 100
 NETWORK_RECORD_STEP = 100
 REWARD_RECORD_STEP = 100
 STEP_RECORD_STEP = 100
-SUCCESS_RATE_TEST_STEP = 100
+SUCCESS_RATE_TEST_STEP = 1000
 TEST_ROUND = 20 # how many episodes in the test
+# This file is the dqn reinforcement learning.
 
 ###################################################################################
 # Functions
@@ -130,6 +133,7 @@ def createNetwork():
     # readout layer
     readout = tf.matmul(h_fc2, W_fc3) + b_fc3
 
+# This file is the dqn reinforcement learning.
     return s, action, h_fc1_add, h_fc2, readout # s and past_a are all placeholders 
 
 '''
@@ -165,6 +169,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
     '''
     # saving and loading networks
     saver = tf.train.Saver()
+# This file is the dqn reinforcement learning.
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -194,7 +199,8 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
             train_env.append(env.FocusEnv(p+DICT_PATH, p+ANGLE_LIMIT_PATH)) # init an environment
         action_space = train_env[0].actions
 
-        # start
+        # This file is the dqn reinforcement learning.
+# start
         while t < NUM_TRAINING_STEPS:
             # one episode in each training environment
             for l in range(len(train_env)):
@@ -216,9 +222,17 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
                     	readout_t = readout_t[0]
 			fc1_t = fc1_t[0]
 			fc2_t = fc2_t[0]
+                        with open("network.txt", "w") as f:
+				txtData = str(s_t) + '\n\n'
+				txtData += str(fc1_t) + '\n\n'
+				txtData += str(fc2_t) + '\n\n'
+				txtData += str(readout_t) + '\n\n'
+				f.write(txtData)
 
-                    	print(readout_t, fc1_t, fc2_t)
-                    
+	                print(fc1_t)
+                        print(fc2_t)
+                        print(readout_t)                
+ 
                		action_index = 0
                 	# epsilon-greedy
                 	if random.random() <= epsilon:
@@ -244,7 +258,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
             		img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
                 	img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
             		# angle_new = np.reshape(angle_new, (1,))
-                        action_new = np.reshape(a_input, (1,))
+                        action_new = np.reshape(a_input/ACTION_NORM, (1,))
             		s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
             		# angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
                         action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
@@ -297,13 +311,19 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
 						action : action_j_batch}
                 			)
 
-                        '''
-                        Testing
-                        '''
-                        if t % SUCCESS_RATE_TEST_STEP == 0:
-                        	success_rate = testNetwork(s, action, readout)
-                        	write_success_rate(t, success_rate)
-
+                    	# print info
+                    	state = ""
+                    	if t <= OBSERVE:
+                        	state = "observe"
+                    	elif t > OBSERVE and t <= OBSERVE + EXPLORE:
+                        	state = "explore"
+                    	else:
+                        	state = "train" 
+           
+                    	print("EPISODE", i, "/ TIMESTEP", t, "/ GRP", train_env[l].dict_path, "/ STEP", step, "/ STATE", state, \
+                        	"/ EPSILON", epsilon, "/ CURRENT ANGLE", train_env[l].cur_state, \
+                            	"/ ACTION", a_input, "/ REWARD", r_t, "/ Q_MAX %e" % np.max(readout_t))
+                    
             		# update the old values
             		s_t = s_t1
                 	# angle_t = angle_t1
@@ -316,19 +336,15 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
             		if t % NETWORK_RECORD_STEP == 0:
             	    		saver.save(sess, SAVE_NETWORK_DIR+'/dqn', global_step = t)
     
-            		# print info
-            		state = ""
-            		if t <= OBSERVE:
-            			state = "observe"
-            		elif t > OBSERVE and t <= OBSERVE + EXPLORE:
-            			state = "explore"
-            		else:
-            			state = "train" 
-           
-            		print("EPISODE", i, "/ TIMESTEP", t, "/ GRP", train_env[l].dict_path, "/ STATE", state, \
-            			"/ EPSILON", epsilon, "/ CURRENT ANGLE", train_env[l].cur_state, "/ STEP", step, \
-                    		"/ ACTION", a_input, "/ REWARD", r_t, "/ Q_MAX %e" % np.max(readout_t))
-                	# time.sleep(0.3)
+            		
+                	# time.sleep(1)
+
+                        '''
+                        Testing
+                        '''
+                        if t % SUCCESS_RATE_TEST_STEP == 0:
+                        	success_rate = testNetwork(s, action, readout)
+                        	write_success_rate(t, success_rate)
 
                 	if terminal:    
                     		break
@@ -455,6 +471,7 @@ def plot_data():
     rList = []
     stepList = []
     successList = []
+    file
     with open(FILE_REWARD, 'r') as f:
         lines = f.readlines()
         for line in lines:
