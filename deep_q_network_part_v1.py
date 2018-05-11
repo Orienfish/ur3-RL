@@ -36,9 +36,13 @@ IMAGE_PATH = ['/home/robot/RL/grp1_part/']# ,'/home/robot/RL/grp2/','/home/robot
 TEST_PATH = '/home/robot/RL/grp1_part/'
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-LOG_DIR = "/tmp/logdir/train_part_v1"
+VERSION = "v1"
+LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 READ_NETWORK_DIR = "saved_networks" # not use, from scratch
-SAVE_NETWORK_DIR = "saved_networks_part_v1"
+SAVE_NETWORK_DIR = "saved_networks_part_" + VERSION
+FILE_SUCCESS = "success_rate_" + VERSION + ".txt"
+FILE_REWARD = "total_reward_" + VERSION + ".txt"
+FILE_STEP = "step_cnt_" + VERSION + ".txt"
 # used in pre-process the picture
 RESIZE_WIDTH = 320
 RESIZE_HEIGHT = 320
@@ -61,6 +65,7 @@ REWARD_RECORD_STEP = 100
 STEP_RECORD_STEP = 100
 SUCCESS_RATE_TEST_STEP = 100
 TEST_ROUND = 20 # how many episodes in the test
+# This file is the dqn reinforcement learning.
 
 ###################################################################################
 # Functions
@@ -126,6 +131,7 @@ def createNetwork():
     # readout layer
     readout = tf.matmul(h_fc2, W_fc3) + b_fc3
 
+# This file is the dqn reinforcement learning.
     return s, action, h_fc1_add, h_fc2, readout # s and past_a are all placeholders 
 
 '''
@@ -161,6 +167,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
     '''
     # saving and loading networks
     saver = tf.train.Saver()
+# This file is the dqn reinforcement learning.
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -190,7 +197,8 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
             train_env.append(env.FocusEnv(p+DICT_PATH, p+ANGLE_LIMIT_PATH)) # init an environment
         action_space = train_env[0].actions
 
-        # start
+        # This file is the dqn reinforcement learning.
+# start
         while t < NUM_TRAINING_STEPS:
             # one episode in each training environment
             for l in range(len(train_env)):
@@ -231,7 +239,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
             	    		epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
                 
             		# run the selected action and observe next state and reward
-            		angle_new, img_path_t1, r_t, terminal = train_env[l].step(a_input, t, EXPLORE)
+            		angle_new, img_path_t1, r_t, terminal = train_env[l].step(a_input)
 
                 	# for debug
                 	# print(angle_t1, img_path_t1)
@@ -367,6 +375,7 @@ def testNetwork(s, action, readout):
         while True:
             # run the network forwardly
             readout_t = readout.eval(feed_dict={s:[s_t], action:[action_t]})[0]
+	    print(readout_t)
             # determine the next action
             action_index = np.argmax(readout_t)
             a_input = action_space[action_index]
@@ -406,11 +415,11 @@ Note: If it's the first time record(t = 0), need to erase the past data complete
 '''
 def write_success_rate(t, success_rate):
     if t == 0:
-        with open("success_rate.txt", 'w') as f:
+        with open(FILE_SUCCESS, 'w') as f:
             txtData = str(success_rate) +'\n'
             f.write(txtData)
     else:
-        with open("success_rate.txt", 'a+') as f:
+        with open(FILE_SUCCESS, 'a+') as f:
             txtData = str(success_rate) +'\n'
             f.write(txtData)
     return
@@ -423,19 +432,19 @@ Note: if it's the first episode(i = 0), need to erase the past data completely.
 def write_reward_and_step(i, rAll, step):
     # finish one episode, record this step
     if i == 0: # first time
-        with open("total_reward.txt", 'w') as f:
+        with open(FILE_REWARD, 'w') as f:
             txtData = str(rAll) + '\n'
             f.write(txtData)
-        with open("step_cnt.txt", 'w') as f:
+        with open(FILE_STEP, 'w') as f:
             txtData = str(step) + '\n'
             f.write(txtData)
         return
     if i % REWARD_RECORD_STEP == 0:
-        with open("total_reward.txt", 'a+') as f:
+        with open(FILE_REWARD, 'a+') as f:
             txtData = str(rAll) + '\n'
             f.write(txtData)
     if i % STEP_RECORD_STEP == 0:
-        with open("step_cnt.txt", 'a+') as f:
+        with open(FILE_STEP, 'a+') as f:
             txtData = str(step) + '\n'
             f.write(txtData)
     return
@@ -450,15 +459,16 @@ def plot_data():
     rList = []
     stepList = []
     successList = []
-    with open("total_reward.txt", 'r') as f:
+    file
+    with open(FILE_REWARD, 'r') as f:
         lines = f.readlines()
         for line in lines:
             rList.append(float(line))
-    with open("step_cnt.txt", 'r') as f:
+    with open(FILE_STEP, 'r') as f:
         lines = f.readlines()
         for line in lines:
             stepList.append(float(line))
-    with open("success_rate.txt", 'r') as f:
+    with open(FILE_SUCCESS, 'r') as f:
         lines = f.readlines()
         for line in lines:
             successList.append(float(line))

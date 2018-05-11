@@ -1,5 +1,5 @@
 ##################################################################
-# This file is the virtual training environment.
+# This file is the virtual training environment.TER->DO_NOTHING
 # Include the state transfer. All the image processing are not here.
 # Modified by xfyu on April 25, 2018.
 ##################################################################
@@ -15,39 +15,31 @@ import matplotlib.pyplot as plt
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
 # IMAGE_PATH = '/home/robot/RL/grp1'
-CHANGE_POINT_RANGE_FINAL = 1.1
-CHANGE_POINT_RANGE_INITIAL = 5.
-TERMINAL_EXTRA_RANGE_INITIAL = 20.
 SUCCESS_REWARD = 1000
 FAILURE_REWARD = -100
-POSITIVE_REWARD_STANDARD = 1
-NEGATIVE_REWARD_STANDARD = -0.1
-MAX_STEPS = 100
+MAX_STEPS = 30
 # maximum and minimum limitations, a little different from collectenv.py
 # only part of the data is used: from 150.jpg to 180.jpg
-MAX_ANGLE = 99.9
-MIN_ANGLE = 0.0
-MIN_ANGLE_LIMIT = 0.3
-MAX_ANGLE_LIMIT = 99.6
+MAX_ANGLE = 54.0
+MIN_ANGLE = 45.0
+MIN_ANGLE_LIMIT = 45.3
+MAX_ANGLE_LIMIT = 53.7
 # actions
 COARSE_POS = 0.3*9
 FINE_POS = 0.3
-TER = 0
+DO_NOTHING = 0
 FINE_NEG = -0.3
 COARSE_NEG = -0.3*9
 
 class FocusEnv(): # one class for one folder
     def __init__(self, DICT_PATH, ANGLE_LIMIT_PATH):
 	# define the action space
-	self.actions = [COARSE_NEG, FINE_NEG, TER, FINE_POS, COARSE_POS]
+	self.actions = [COARSE_NEG, FINE_NEG, DO_NOTHING, FINE_POS, COARSE_POS]
 	self.dic = dict()
 	self.dict_path = DICT_PATH
     	self.angle_path = ANGLE_LIMIT_PATH
 	self.import_dic()
 	self.import_angle()
-	# set the parameters, init only once
-	self.change_point_range = CHANGE_POINT_RANGE_INITIAL
-	self.extra_range = TERMINAL_EXTRA_RANGE_INITIAL
 
     def reset(self): # reset starts a new episode, never change DICT_PATH and ANGLE_LIMIT_PATH
     # reset the starting state
@@ -69,68 +61,30 @@ class FocusEnv(): # one class for one folder
     		reward - reward of this single operation
     		terminal - True or False
     '''
-    def step(self, input_action, time_step, EXPLORE): # action is the angle to move
+    def step(self, input_action): # action is the angle to move
     	self.cur_step = self.cur_step + 1
     	# special case #1
     	if self.cur_state + input_action > MAX_ANGLE_LIMIT:
-    	    return MAX_ANGLE, self.dic[MAX_ANGLE], FAILURE_REWARD, True
+    	    return MAX_ANGLE, self.dic[MAX_ANGLE], FAILURE_REWARD + self.get_reward(MAX_ANGLE), True
     	# special case #2
     	if self.cur_state + input_action < MIN_ANGLE_LIMIT:
-    	    return MIN_ANGLE, self.dic[MIN_ANGLE], FAILURE_REWARD, True
+    	    return MIN_ANGLE, self.dic[MIN_ANGLE], FAILURE_REWARD + self.get_reward(MIN_ANGLE), True
 	# special case #3
 	if self.cur_step >= MAX_STEPS:
-	    # self.reset(self.dict_path, self.angle_path)
-	    next_state = round(self.cur_state + input_action, 2)
+	    next_state = self.cur_state + input_action
+	    next_state = round(next_state, 2)
 	    next_image_path = self.dic[next_state]
-	    return next_state, next_image_path, FAILURE_REWARD, True
+	    # check the final state, set the terminal reward regarding the final angle
+	    terminal_reward = FAILURE_REWARD
+	    if next_state >= self.terminal_angle_low and next_state <= self.terminal_angle_high:
+		terminal_reward = SUCCESS_REWARD
+	    return next_state, next_image_path, terminal_reward + self.get_reward(next_state), True
 
-	# determine the terminal angle
-	self.terminal_angle_determine(time_step, EXPLORE)
-
-	# input action is terminal
-	if input_action == TER:
-	    # reach the terminal zone, success
-	    if self.cur_state >= self.terminal_angle_t_low and \
-	    	self.cur_state <= self.terminal_angle_t_high:
-	    	return self.cur_state, self.dic[self.cur_state], SUCCESS_REWARD, True
-	    # outside the terminal zone, fail
-	    else:
-	    	return self.cur_state, self.dic[self.cur_state], FAILURE_REWARD, True
-
-	# normal cases: one right answer
-	reward = NEGATIVE_REWARD_STANDARD
-	# state 1
-	if self.cur_state < self.change_point_t_low:
-	    if input_action == COARSE_POS: # COARSE POS
-	    	# print("COARSE POS")
-	    	reward = POSITIVE_REWARD_STANDARD
-	# state 2
-	elif self.cur_state >= self.change_point_t_low and \
-		self.cur_state < self.terminal_angle_t_low:
-	    if input_action == FINE_POS: # FINE POS
-	    	# print("FINE POS")
-	    	reward = POSITIVE_REWARD_STANDARD
-	# state 3 - already process in the above
-	# elif self.cur_state >= self.terminal_angle_t_low and \
-	#    self.cur_state <= self.terminal_angle_t_high:
-	#    if input_action == TER: # TERMINAL
-	#    	return self.cur_state, self.dic[self.cur_state], SUCCESS_REWARD, True
-	# state 4
-	elif self.cur_state > self.terminal_angle_t_high and \
-	    self.cur_state < self.change_point_t_high:
-	    if input_action == FINE_NEG: # FINE NEG
-	    	# print("FINE NEG")
-	    	reward = POSITIVE_REWARD_STANDARD
-	elif self.cur_state >= self.change_point_t_high:
-	    if input_action == COARSE_NEG: # COARSE NEG
-	    	# print("COARSE NEG")
-	    	reward = POSITIVE_REWARD_STANDARD
-	# calculate the reward
-	# reward = self.reward_multiply(reward) # calculate the multiply
-	next_state = round(self.cur_state + input_action, 2)
+	next_state = self.cur_state + input_action
+	next_state = round(next_state, 2)
 	next_image_path = self.dic[next_state]
 	self.cur_state = next_state # state transfer
-	return next_state, next_image_path, reward, False
+	return next_state, next_image_path, self.get_reward(next_state), False
 
     def import_angle(self):
 	with open(self.angle_path, "r") as txtData:
@@ -139,27 +93,19 @@ class FocusEnv(): # one class for one folder
 	# These are unchanged standard used in the test
 	self.terminal_angle_low = float(Data[0])
 	self.terminal_angle_high = float(Data[1])
-	self.change_point_low = round(self.terminal_angle_low - CHANGE_POINT_RANGE_FINAL, 2)
-	self.change_point_high = round(self.terminal_angle_high + CHANGE_POINT_RANGE_FINAL, 2)
 	# print(Data[0], Data[1])
 	return
 
     '''
-    terminal_angle_determine - determine terminal_angle_t and change_angle_t
+    get_reward - reward determination
     '''
-    def terminal_angle_determine(self, time_step, EXPLORE):
-	# after the EXPLORE times should reach the final value
-	if self.extra_range > 0:
-		self.extra_range -= TERMINAL_EXTRA_RANGE_INITIAL / EXPLORE
-		self.terminal_angle_t_low = round(self.terminal_angle_low - self.extra_range, 2)
-		self.terminal_angle_t_high = round(self.terminal_angle_high + self.extra_range, 2)
-		print("terminal:", self.extra_range, self.terminal_angle_t_low, self.terminal_angle_t_high)
-	if self.change_point_range > CHANGE_POINT_RANGE_FINAL:
-		self.change_point_range -= (CHANGE_POINT_RANGE_INITIAL - CHANGE_POINT_RANGE_FINAL) / EXPLORE
-		self.change_point_t_low = round(self.terminal_angle_t_low - self.change_point_range, 2)
-		self.change_point_t_high = round(self.terminal_angle_t_high + self.change_point_range, 2)
-		print("change:", self.change_point_range, self.change_point_t_low, self.change_point_t_high)
-	return
+    def get_reward(self, next_angle):
+	reward = 0 # suppose that it reaches the terminal range
+	if next_angle < self.terminal_angle_low:
+		reward = next_angle - self.terminal_angle_low
+	elif next_angle > self.terminal_angle_high:
+		reward = self.terminal_angle_high - next_angle
+	return reward
 
     '''
     step - regulations of transfering between states in testing
@@ -180,23 +126,17 @@ class FocusEnv(): # one class for one folder
     	    return MIN_ANGLE, self.dic[MIN_ANGLE], True, False
 	# special case #3
 	if self.cur_step >= MAX_STEPS:
-	    # self.reset(self.dict_path, self.angle_path)
-	    next_state = round(self.cur_state + input_action, 2)
+	    next_state = self.cur_state + input_action
+	    next_state = round(next_state, 2)
 	    next_image_path = self.dic[next_state]
+	    # check for the final result: success or not
+	    if next_state >= self.terminal_angle_low and next_state <= self.terminal_angle_high:
+	    	return next_state, next_image_path, True, True
 	    return next_state, next_image_path, True, False
 
-	# input action is terminal
-	if input_action == TER:
-		# reach the terminal zone, success
-	    if self.cur_state >= self.terminal_angle_low and \
-	    	self.cur_state <= self.terminal_angle_high:
-	    	return self.cur_state, self.dic[self.cur_state], True, True
-	    # outside the terminal zone, fail
-	    else:
-	    	return self.cur_state, self.dic[self.cur_state], True, False
-
 	# get the next state, no need to calculate reward
-	next_state = round(self.cur_state + input_action, 2)
+	next_state = self.cur_state + input_action
+	next_state = round(next_state, 2)
 	next_image_path = self.dic[next_state]
 	self.cur_state = next_state # state transfer
 	return next_state, next_image_path, False, False
@@ -215,16 +155,6 @@ class FocusEnv(): # one class for one folder
         # print(self.dic)
         return self.dic
     
-    '''
-    reward_multiply - decrease the reward as the step increase
-    '''
-    '''
-    def reward_multiply(self, reward):
-    	if reward < 0:
-    		return reward
-    	else:
-    		return reward * (1-0.0001*self.cur_step*self.cur_step)
-	'''
 ########################################################################
 # Main - test the environment
 ########################################################################

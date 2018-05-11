@@ -61,7 +61,7 @@ class FocusEnv(): # one class for one folder
     		reward - reward of this single operation
     		terminal - True or False
     '''
-    def step(self, input_action, time_step, EXPLORE): # action is the angle to move
+    def step(self, input_action): # action is the angle to move
     	self.cur_step = self.cur_step + 1
     	# special case #1
     	if self.cur_state + input_action > MAX_ANGLE_LIMIT:
