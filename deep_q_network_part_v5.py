@@ -47,10 +47,11 @@ FILE_SUCCESS = "success_rate_" + VERSION + ".txt"
 FILE_REWARD = "total_reward_" + VERSION + ".txt"
 FILE_STEP = "step_cnt_" + VERSION + ".txt"
 # used in pre-process the picture
-RESIZE_WIDTH = 320
-RESIZE_HEIGHT = 320
+RESIZE_WIDTH = 128
+RESIZE_HEIGHT = 128
 # normalize the action
-ACTION_NORM = 3
+ACTION_NORM = 2.7
+ANGLE_NORM = 100
 
 # parameters used in training
 ACTIONS = 5 # number of valid actions
@@ -63,7 +64,7 @@ BATCH = 32 # size of minibatch
 OBSERVE = 1000. # timesteps to observe before training
 EXPLORE = 40000. # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001 # final value of epsilon
-INITIAL_EPSILON = 0.1 # starting value of epsilon
+INITIAL_EPSILON = 0.01 # starting value of epsilon
 COST_RECORD_STEP = 100
 NETWORK_RECORD_STEP = 100
 REWARD_RECORD_STEP = 100
@@ -89,78 +90,105 @@ def conv2d(x, W, stride):
 def max_pool_2x2(x):
     return tf.nn.max_pool(x, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = "SAME")
 
-def LeakyReLU(x, alpha=0.01):
-    return tf.maximum(alpha*x, x)
+def space_tiling(x): # expand from [None, 64] to [None, 4, 4, 64]
+    x = tf.expand_dims(tf.expand_dims(x, 1), 1)
+    return tf.tile(x, [1, 4, 4, 1])
 
 '''
 createNetwork - set the structure of CNN
 '''
-def createNetwork():
-    # network weights
-    W_conv1 = weight_variable([8, 8, PAST_FRAME, 32])
-    b_conv1 = bias_variable([32])
+# network weights
+W_conv1 = weight_variable([8, 8, PAST_FRAME, 32])
+b_conv1 = bias_variable([32])
 
-    W_conv2 = weight_variable([4, 4, 32, 64])
-    b_conv2 = bias_variable([64])
+W_conv2 = weight_variable([6, 6, 32, 64])
+b_conv2 = bias_variable([64])
 
-    W_conv3 = weight_variable([4, 4, 64, 16])
-    b_conv3 = bias_variable([16])
+W_conv3 = weight_variable([4, 4, 128, 64])
+b_conv3 = bias_variable([64])
 
-    W_fc1 = weight_variable([400, 16])
-    b_fc1 = bias_variable([16])
+W_conv4 = weight_variable([3, 3, 64, 64])
+b_conv4 = bias_variable([64])
 
-    W_fc2 = weight_variable([16+PAST_FRAME, 8])
-    b_fc2 = bias_variable([8])
+W_fc1 = weight_variable([256, 256])
+b_fc1 = bias_variable([256])
 
-    W_fc3 = weight_variable([8, ACTIONS])
-    b_fc3 = bias_variable([ACTIONS])
+W_fc2 = weight_variable([256, 256])
+b_fc2 = bias_variable([256])
 
-    # input layer
-    # one state to train each time
-    s = tf.placeholder("float", [None, RESIZE_WIDTH, RESIZE_HEIGHT, PAST_FRAME])
-    action = tf.placeholder("float", [None, PAST_FRAME])
+W_fc3 = weight_variable([256, ACTIONS])
+b_fc3 = bias_variable([ACTIONS])
 
-    # hidden layers
-    h_conv1 = LeakyReLU(conv2d(s, W_conv1, 4) + b_conv1)
-    h_pool1 = max_pool_2x2(h_conv1)
+W_fc_info = weight_variable([PAST_FRAME*2, 64])
+b_fc_info = bias_variable([64])
 
-    h_conv2 = LeakyReLU(conv2d(h_pool1, W_conv2, 2) + b_conv2)
-    h_pool2 = max_pool_2x2(h_conv2)
+# input layer
+# one state to train each time
+s = tf.placeholder("float", [None, RESIZE_WIDTH, RESIZE_HEIGHT, PAST_FRAME])
+past_info = tf.placeholder("float", [None, PAST_FRAME*2])
+training = tf.placeholder_with_default(False, shape=(), name='training')
 
-    h_conv3 = LeakyReLU(conv2d(h_pool2, W_conv3, 1) + b_conv3)
-    h_pool3 = max_pool_2x2(h_conv3)
+# hidden layers
+h_conv1 = conv2d(s, W_conv1, 4) + b_conv1
+h_bn1 = tf.layers.batch_normalization(h_conv1, axis=-1, training=training, momentum=0.9)
+h_relu1 = tf.nn.relu(h_bn1)
+h_pool1 = max_pool_2x2(h_relu1) # [None, 16, 16, 32]
 
-    h_pool3_flat = tf.reshape(h_pool3, [-1, 400])
+h_conv2 = conv2d(h_pool1, W_conv2, 2) + b_conv2
+h_bn2 = tf.layers.batch_normalization(h_conv2, axis=-1, training=training, momentum=0.9)
+h_relu2 = tf.nn.relu(h_bn2)
+h_pool2 = max_pool_2x2(h_relu2) # [None, 4, 4, 64]
 
-    h_fc1 = LeakyReLU(tf.matmul(h_pool3_flat, W_fc1) + b_fc1)
-    h_fc1_add = tf.concat([h_fc1, action], 1)
+h_fc_info = tf.matmul(past_info, W_fc_info) + b_fc_info
+h_bn_info = tf.layers.batch_normalization(h_fc_info, axis=-1, training=training, momentum=0.9)
+h_relu_info = tf.nn.relu(h_bn_info) # [None, 64]
+
+info_add = space_tiling(h_relu_info) # [None, 4, 4, 64]
+layer3_input = tf.concat([h_pool2, info_add], 3) # [None, 4, 4, 128]
+h_conv3 = conv2d(layer3_input, W_conv3, 1) + b_conv3
+h_bn3 = tf.layers.batch_normalization(h_conv3, axis=-1, training=training, momentum=0.9)
+h_relu3 = tf.nn.relu(h_bn3) # [None, 4, 4, 64]
+# h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
+
+h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
+h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
+h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
+h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
+
+h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
+
+h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
+h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
+h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
     
-    h_fc2 = LeakyReLU(tf.matmul(h_fc1_add, W_fc2) + b_fc2)
-    # readout layer
-    readout = tf.matmul(h_fc2, W_fc3) + b_fc3
+h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
+h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
+h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
+# readout layer
+readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
 
-# This file is the dqn reinforcement learning.
-    return s, action, h_fc1_add, h_fc2, readout # s and past_a are all placeholders 
+'''
+Neural Network Definitions
+'''
+# define the cost function
+a = tf.placeholder("float", [None, ACTIONS])
+y = tf.placeholder("float", [None])
+# define cost
+with tf.name_scope('cost'):
+    readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
+    cost = tf.reduce_mean(tf.square(y - readout_action))
+    tf.summary.scalar('cost', cost)
+# define training step
+with tf.name_scope('train'):
+    optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(update_ops):
+        train_step = optimizer.minimize(cost)
 
 '''
 trainNetwork - the training process
 '''
-def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
-    '''
-    Neural Network Definitions
-    '''
-    # define the cost function
-    a = tf.placeholder("float", [None, ACTIONS])
-    y = tf.placeholder("float", [None])
-    # define cost
-    with tf.name_scope('cost'):
-        readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
-        cost = tf.reduce_mean(tf.square(y - readout_action))
-        tf.summary.scalar('cost', cost)
-    # define training step
-    with tf.name_scope('train'): 
-        train_step = tf.train.AdamOptimizer(LEARNING_RATE).minimize(cost)
-
+def trainNetwork():
     '''
     Training Preparations
     '''
@@ -218,19 +246,23 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
             	img_t = cv2.imread(init_img_path)
             	img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
             	s_t = np.stack((img_t, img_t, img_t), axis=2)
-            	# angle_t = np.stack((init_angle, init_angle, init_angle), axis=0)
                 action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+		angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
+		past_info_t = np.append(action_t, angle_t, axis=0)
 
             	# start one episode
             	while True:
                     	# readout_t = readout.eval(feed_dict={s:[s_t], action:[action_t]})[0]
-                    	readout_t, fc1_t, fc2_t = sess.run([readout, h_fc1_add, h_fc2], feed_dict={s:[s_t], action:[action_t]})
+                    	readout_t, h_pool4_flat_t, h_relu_fc1_t, h_relu_fc2_t = sess.run([readout, h_pool4_flat, h_relu_fc1, h_relu_fc2], feed_dict={
+				s : [s_t], 
+				past_info : [past_info_t],
+				training : False}
+			)
                     	readout_t = readout_t[0]
-			fc1_t = fc1_t[0]
-			fc2_t = fc2_t[0]
-
-	                print(fc1_t)
-                        print(fc2_t)
+			
+			# print(h_pool4_flat_t)
+	                # print(h_relu_fc1_t)
+                        print(h_relu_fc2_t)
                         print(readout_t)                
  
                		action_index = 0
@@ -257,14 +289,16 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
             		img_t1 = cv2.imread(img_path_t1)
             		img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
                 	img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-            		# angle_new = np.reshape(angle_new, (1,))
+            		angle_new = np.reshape(angle_new/ANGLE_NORM, (1,))
                         action_new = np.reshape(a_input/ACTION_NORM, (1,))
-            		s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-            		# angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
+            		# stack to the state information
+			s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
+            		angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
                         action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-
+			past_info_t1 = np.append(action_t1, angle_t1, axis=0)
+                   	print(past_info_t1) 
             		# store the transition into D
-            		D.append((s_t, action_t, a_t, r_t, s_t1, action_t1, terminal))
+            		D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
             		if len(D) > REPLAY_MEMORY:
            	    		D.popleft()
 
@@ -278,14 +312,18 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
 
             	    		# get the batch variables
             	    		s_j_batch = [d[0] for d in minibatch]
-                            	action_j_batch = [d[1] for d in minibatch]
+                            	past_info_j_batch = [d[1] for d in minibatch]
             	    		a_batch = [d[2] for d in minibatch]
             	    		r_batch = [d[3] for d in minibatch]
             	    		s_j1_batch = [d[4] for d in minibatch]
-                            	action_j1_batch = [d[5] for d in minibatch]
+                            	past_info_j1_batch = [d[5] for d in minibatch]
 
             	    		y_batch = [] # y is TD target
-            	    		readout_j1_batch = readout.eval(feed_dict = {s:s_j1_batch, action:action_j1_batch})
+            	    		readout_j1_batch = readout.eval(feed_dict = {
+					s : s_j1_batch, 
+					past_info : past_info_j1_batch,
+					training : False}
+				)
             	    		for k in range(len(minibatch)):
                 			terminal_sample = minibatch[k][6]
                 			# if terminal, only equals reward
@@ -300,7 +338,8 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
                 				y : y_batch,
                 				a : a_batch,
                 				s : s_j_batch,
-						action : action_j_batch}
+						past_info : past_info_j_batch,
+						training : True}
                 			)
                 			train_writer.add_summary(summary_str, t) # write cost to record
             	    		else:
@@ -308,7 +347,8 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
                 				y : y_batch,
                 				a : a_batch,
                 				s : s_j_batch,
-						action : action_j_batch}
+						past_info : past_info_j_batch,
+						training : True}
                 			)
 
                     	# print info
@@ -326,7 +366,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
                     
             		# update the old values
             		s_t = s_t1
-                	# angle_t = angle_t1
+                	angle_t = angle_t1
 			action_t = action_t1
             		t += 1    # total time steps
                 	rAll += r_t
@@ -343,7 +383,7 @@ def trainNetwork(s, action, h_fc1_add, h_fc2, readout):
                         Testing
                         '''
                         if t % SUCCESS_RATE_TEST_STEP == 0:
-                        	success_rate = testNetwork(s, action, readout)
+                        	success_rate = testNetwork()
                         	write_success_rate(t, success_rate)
 
                 	if terminal:    
@@ -367,7 +407,7 @@ testNetwork - test the training performance, calculate the success rate
 Input: s, action,readout
 Return: success rate
 '''
-def testNetwork(s, action, readout):
+def testNetwork():
     # initialize testing environment
     test_env = env.FocusEnv(TEST_PATH+DICT_PATH, TEST_PATH+ANGLE_LIMIT_PATH)
     action_space = test_env.actions
@@ -379,14 +419,17 @@ def testNetwork(s, action, readout):
         img_t = cv2.imread(init_img_path)
         img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
         s_t = np.stack((img_t, img_t, img_t), axis=2)
-        # angle_t = np.stack((init_angle, init_angle, init_angle), axis=0)
+        angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
         action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-
+	past_info_t = np.append(action_t, angle_t, axis=0)
         step = 0
         # start 1 episode
         while True:
             # run the network forwardly
-            readout_t = readout.eval(feed_dict={s:[s_t], action:[action_t]})[0]
+            readout_t = readout.eval(feed_dict={
+		s : [s_t], 
+		past_info : [past_info_t],
+		training : False})[0]
 	    print(readout_t)
             # determine the next action
             action_index = np.argmax(readout_t)
@@ -401,12 +444,12 @@ def testNetwork(s, action, readout):
             img_t1 = cv2.imread(img_path_t1)
             img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
             img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-            # angle_new = np.reshape(angle_new, (1,))
-            action_new = np.reshape(a_input, (1,))
+            angle_new = np.reshape(angle_new/ANGLE_NORM, (1,))
+            action_new = np.reshape(a_input/ACTION_NORM, (1,))
             s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-            # angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
+            angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
             action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-
+	    past_info_t1 = np.append(action_t1, angle_t1, axis=0)
             # print test info
             print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env.dict_path, \
                 "/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
@@ -414,6 +457,7 @@ def testNetwork(s, action, readout):
             # update
             s_t = s_t1
             action_t = action_t1
+	    angle_t = angle_t1
             step += 1
 
     success_rate = success_cnt / TEST_ROUND
@@ -559,15 +603,8 @@ def layout_dashboard(writer):
     ]))
     writer.add_summary(layout_summary)
 
-'''
-playGame - call createNetwork and train it
-'''
-def StartTraining():
-    s, action, h_fc1_add, h_fc2, readout = createNetwork()
-    trainNetwork(s, action, h_fc1_add, h_fc2, readout)
-
 ###################################################################################
 # Main
 ###################################################################################
 if __name__ == "__main__":
-    StartTraining()
+	trainNetwork()
