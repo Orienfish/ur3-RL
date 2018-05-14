@@ -17,7 +17,7 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # IMAGE_PATH = '/home/robot/RL/grp1'
 SUCCESS_REWARD = 1000
 FAILURE_REWARD = -100
-MAX_STEPS = 50
+MAX_STEPS = 30
 # maximum and minimum limitations, a little different from collectenv.py
 # only part of the data is used: from 150.jpg to 180.jpg
 MAX_ANGLE = 54.0
