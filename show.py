@@ -14,11 +14,13 @@ def TENG(img):
 
 if __name__ == '__main__':
 	fList = []
-	for i in range(150, 191):
+	for i in range(0, 334):
 		pic_name = PATH+'/'+str(i)+'.jpg'
 		print pic_name
-		img = cv2.imread(pic_name, 0)
-        	fList.append(TENG(img))
+		img = cv2.imread(pic_name)
+        	img = cv2.cvtColor(cv2.resize(img, (100,80)), cv2.COLOR_BGR2GRAY)
+		fList.append(TENG(img))
+		# cv2.imwrite("myimg.png", img)
 	plt.plot(fList, 'bx--')
 	plt.savefig('./focus_show', dpi=1200)
 	plt.show()
