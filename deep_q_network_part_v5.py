@@ -31,9 +31,9 @@ import time
 ###################################################################################
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
-IMAGE_PATH = ['/home/robot/RL/grp1_part/']# ,'/home/robot/RL/grp2/','/home/robot/RL/grp3/',\
+IMAGE_PATH = ['/home/robot/RL/grp1/']# ,'/home/robot/RL/grp2/','/home/robot/RL/grp3/',\
 #   '/home/robot/RL/grp4/', '/home/robot/RL/grp5/']
-TEST_PATH = '/home/robot/RL/grp1_part/'
+TEST_PATH = '/home/robot/RL/grp1/'
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
 VERSION = "v5"
@@ -173,11 +173,14 @@ Neural Network Definitions
 # define the cost function
 a = tf.placeholder("float", [None, ACTIONS])
 y = tf.placeholder("float", [None])
+accuracy = tf.placeholder("float", [1])
 # define cost
 with tf.name_scope('cost'):
     readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
     cost = tf.reduce_mean(tf.square(y - readout_action))
     tf.summary.scalar('cost', cost)
+with tf.name_scope('accuracy'):
+    tf.summary.scalar('accuracy', accuracy)
 # define training step
 with tf.name_scope('train'):
     optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
@@ -384,7 +387,9 @@ def trainNetwork():
                         '''
                         if t % SUCCESS_RATE_TEST_STEP == 0:
                         	success_rate = testNetwork()
-                        	write_success_rate(t, success_rate)
+				summary_str = sess.run([merged_summary_op], feed_dict={accuracy:success_rate})
+                        	train_write.add_summary(summary_str, t)
+				write_success_rate(t, success_rate)
 
                 	if terminal:    
                     		break
