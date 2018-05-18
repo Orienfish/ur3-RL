@@ -549,7 +549,7 @@ def plot_data():
     plt.subplot(212)
     plt.plot(successList, 'go-')
     plt.xlabel('episode({})'.format(SUCCESS_RATE_TEST_STEP))
-    plt.ylabel('steps')
+    plt.ylabel('accuracy')
 
     # save this figure
     plt.savefig('result_'+str(VERSION), dpi=1200)
