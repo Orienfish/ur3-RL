@@ -124,9 +124,9 @@ b_fc_info = bias_variable([64])
 
 # input layer
 # one state to train each time
-s = tf.placeholder("float", [None, RESIZE_WIDTH, RESIZE_HEIGHT, PAST_FRAME])
-past_info = tf.placeholder("float", [None, PAST_FRAME*2])
-training = tf.placeholder_with_default(False, shape=(), name='training')
+s = tf.placeholder(dtype=tf.float32, name='s', shape=(None, RESIZE_WIDTH, RESIZE_HEIGHT, PAST_FRAME))
+past_info = tf.placeholder(dtype=tf.float32, name='past_info', shape=(None, PAST_FRAME*2))
+training = tf.placeholder_with_default(False, name='training', shape=())
 
 # hidden layers
 h_conv1 = conv2d(s, W_conv1, 4) + b_conv1
@@ -171,9 +171,9 @@ readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
 Neural Network Definitions
 '''
 # define the cost function
-a = tf.placeholder("float", [None, ACTIONS])
-y = tf.placeholder("float", [None])
-accuracy = tf.placeholder("float", [1])
+a = tf.placeholder(dtype=tf.float32, name='a', shape=(None, ACTIONS))
+y = tf.placeholder(dtype=tf.float32, name='y', shape=(None))
+accuracy = tf.placeholder(dtype=tf.float32, name='accuracy', shape=())
 # define cost
 with tf.name_scope('cost'):
     readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
@@ -248,9 +248,9 @@ def trainNetwork():
                 # generate the first state, a_past is 0
             	img_t = cv2.imread(init_img_path)
             	img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-            	s_t = np.stack((img_t, img_t, img_t), axis=2)
-                action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-		angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
+            	s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
+                action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
+		angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
 		past_info_t = np.append(action_t, angle_t, axis=0)
 
             	# start one episode
@@ -342,7 +342,8 @@ def trainNetwork():
                 				a : a_batch,
                 				s : s_j_batch,
 						past_info : past_info_j_batch,
-						training : True}
+						training : True,
+			                        accuracy : success_rate}
                 			)
                 			train_writer.add_summary(summary_str, t) # write cost to record
             	    		else:
@@ -387,8 +388,6 @@ def trainNetwork():
                         '''
                         if t % SUCCESS_RATE_TEST_STEP == 0:
                         	success_rate = testNetwork()
-				summary_str = sess.run([merged_summary_op], feed_dict={accuracy:success_rate})
-                        	train_write.add_summary(summary_str, t)
 				write_success_rate(t, success_rate)
 
                 	if terminal:    
@@ -423,9 +422,9 @@ def testNetwork():
         # generate the first state, a_past is 0
         img_t = cv2.imread(init_img_path)
         img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-        s_t = np.stack((img_t, img_t, img_t), axis=2)
-        angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
-        action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+        s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
+        angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
+        action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
 	past_info_t = np.append(action_t, angle_t, axis=0)
         step = 0
         # start 1 episode
@@ -553,7 +552,7 @@ def plot_data():
     plt.ylabel('steps')
 
     # save this figure
-    plt.savefig('result', dpi=1200)
+    plt.savefig('result_'+str(VERSION), dpi=1200)
     return
 
 '''
