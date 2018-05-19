@@ -21,7 +21,7 @@ import random
 import numpy as np
 from collections import deque
 # import pycontrol as ur
-import trainenv_aa_part_v4 as env
+import trainenv_aa_part_v8_rt as env
 from ctypes import *
 import matplotlib.pyplot as plt
 import time
@@ -36,7 +36,7 @@ IMAGE_PATH = ['/home/robot/RL/grp1/']# ,'/home/robot/RL/grp2/','/home/robot/RL/g
 TEST_PATH = '/home/robot/RL/grp1/'
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "v5"
+VERSION = "v8"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 READ_NETWORK_DIR = "saved_networks" # not use, from scratch
 SAVE_NETWORK_DIR = "saved_networks_part_" + VERSION
