@@ -36,9 +36,9 @@ IMAGE_PATH = ['/home/robot/RL/grp1/']# ,'/home/robot/RL/grp2/','/home/robot/RL/g
 TEST_PATH = '/home/robot/RL/grp1/'
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "v8"
+VERSION = "v10"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
-READ_NETWORK_DIR = "saved_networks" # not use, from scratch
+READ_NETWORK_DIR = "saved_networks_part_" + VERSION
 SAVE_NETWORK_DIR = "saved_networks_part_" + VERSION
 # if directory does not exist, new it
 if not os.path.isdir(os.path.join(PATH, SAVE_NETWORK_DIR)):
@@ -218,11 +218,11 @@ def trainNetwork():
         layout_dashboard(train_writer)
 
         # load in half-trained networks
-        #checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
-        #if checkpoint and checkpoint.model_checkpoint_path:
+        # checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
+        # if checkpoint and checkpoint.model_checkpoint_path:
         #    saver.restore(sess, checkpoint.model_checkpoint_path)
         #    print("Successfully loaded:", checkpoint.model_checkpoint_path)
-        #else:
+        # else:
         #    print("Could not find old network weights")
     
         # rList = []

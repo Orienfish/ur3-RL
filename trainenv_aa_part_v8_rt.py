@@ -21,8 +21,8 @@ ACTION_REWARD = 1
 MAX_STEPS = 15
 # maximum and minimum limitations, a little different from collectenv.py
 # only part of the data is used: from 150.jpg to 180.jpg
-MAX_ANGLE = 54.0
-MIN_ANGLE = 45.0
+MAX_ANGLE = 58.8
+MIN_ANGLE = 40.2
 CHANGE_POINT_RANGE = 1.1
 # actions
 COARSE_POS = 0.3*9
