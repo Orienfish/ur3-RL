@@ -14,7 +14,7 @@ def TENG(img):
 
 if __name__ == '__main__':
 	fList = []
-	for i in range(150, 186):
+	for i in range(134, 197):
 		pic_name = PATH+'/'+str(i)+'.jpg'
 		print pic_name
 		img = cv2.imread(pic_name)
