@@ -190,6 +190,8 @@ def testNetwork():
         else:
                 print("Could not find old network weights")
     	
+	success_cnt = 0.0
+	total_steps = 0.0
         # start test
 	for test in range(TEST_ROUND):
 	    init_angle, init_img_path = test_env.reset()
@@ -233,8 +235,8 @@ def testNetwork():
 		action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
 	        past_info_t1 = np.append(action_t1, angle_t1, axis=0)
 		# print test info
-		print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env[l].dict_path, \
-			"/ CURRENT ANGLE", test_env[l].cur_state, "/ ACTION", a_input)
+		print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", \
+			"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
 
 		# update
 		s_t = s_t1
