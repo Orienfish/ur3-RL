@@ -13,7 +13,7 @@ import sys
 import random
 import numpy as np
 # import pycontrol as ur
-import train_aa_part_v8_rt as env
+import trainenv_aa_part_v8_rt as env
 import matplotlib.pyplot as plt
 
 ###################################################################################
@@ -26,7 +26,7 @@ TEST_PATH = ['/home/robot/RL/grp1/','/home/robot/RL/grp2/','/home/robot/RL/grp3/
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
 # specify the version of test model
-VERSION = "v123"
+VERSION = "v124"
 TRAIN_DIR = "train_" + VERSION
 TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
 # the following files are all in training directories
@@ -252,7 +252,7 @@ def testNetwork():
 
     		success_rate.append(success_cnt/TEST_ROUND)
     		step_cost.append(total_steps/TEST_ROUND)
-    for l in len(test_grp):
+    for l in range(len(test_grp)):
     	print("test grp:", test_grp[l], "success_rate:", success_rate[l], "step per episode:", step_cost[l])
     return success_rate
 
