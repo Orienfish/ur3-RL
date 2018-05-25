@@ -18,11 +18,11 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 SUCCESS_REWARD = 100
 FAILURE_REWARD = -100
 ACTION_REWARD = 1
-MAX_STEPS = 20
+MAX_STEPS = 50
 # maximum and minimum limitations, a little different from collectenv.py
 # only part of the data is used: from 150.jpg to 180.jpg
-MAX_ANGLE = 69.0
-MIN_ANGLE = 30.0
+MAX_ANGLE = 97.2
+MIN_ANGLE = 2.7
 CHANGE_POINT_RANGE = 1.5
 # actions
 COARSE_POS = 0.3*9
