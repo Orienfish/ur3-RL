@@ -25,7 +25,7 @@ import trainenv_aa_part_v8_rt as env
 from ctypes import *
 import matplotlib.pyplot as plt
 import time
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "1" # directly point gpu:1
 ###################################################################################
 # Important global parameters
 ###################################################################################
@@ -39,7 +39,7 @@ IMAGE_PATH = ['/home/robot/RL/grp1/','/home/robot/RL/grp2/','/home/robot/RL/grp3
 TEST_PATH = ['/home/robot/RL/grp17/','/home/robot/RL/grp18/','/home/robot/RL/grp19/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "new_v1"
+VERSION = "new_v4"
 BASED_VERSION = "v11"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 TRAIN_DIR = "train_" + VERSION
@@ -88,14 +88,18 @@ REWARD_RECORD_STEP = 100
 STEP_RECORD_STEP = 100
 SUCCESS_RATE_TEST_STEP = 4000
 TEST_ROUND = 20 # how many episodes in the test
-# This file is the dqn reinforcement learning.
 
+# lambda used in L2 regularization
+LAMBDA = 100.0
 ###################################################################################
 # Functions
 ###################################################################################
 def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev = 0.01)
-    return tf.Variable(initial)
+    var = tf.Variable(initial)
+    # add L2 regularizer to losses collection
+    tf.add_to_collection("losses", tf.contrib.layers.l2_regularizer(LAMBDA)(var))
+    return var
 
 def bias_variable(shape):
     initial = tf.constant(0.01, shape = shape)
@@ -165,25 +169,26 @@ layer3_input = tf.concat([h_pool2, info_add], 3) # [None, 4, 4, 128]
 h_conv3 = conv2d(layer3_input, W_conv3, 1) + b_conv3
 h_bn3 = tf.layers.batch_normalization(h_conv3, axis=-1, training=training, momentum=0.9)
 h_relu3 = tf.nn.relu(h_bn3) # [None, 4, 4, 64]
-h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
+# h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
 
-# h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
-# h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
-# h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
-# h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
+h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
+h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
+h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
+h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 
-h_pool4_flat = tf.reshape(h_pool3, [-1, 256]) # [None, 256]
+h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
 
+# h_drop_fc1 = tf.nn.dropout(h_pool4_flat, keep_prob=0.5)
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
-h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
-h_bn_fc1 = tf.layers.batch_normalization(h_drop_fc1, axis=-1, training=training, momentum=0.9)
+h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
-    
+
+# h_drop_fc2 = tf.nn.dropout(h_relu_fc1, keep_prob=0.5)
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
-h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
-h_bn_fc2 = tf.layers.batch_normalization(h_drop_fc2, axis=-1, training=training, momentum=0.9)
+h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
 # readout layer
+# h_drop_fc3 = tf.nn.dropout(h_relu_fc2, keep_prob=0.5)
 readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
 
 '''
@@ -197,7 +202,10 @@ test_accuracy = tf.placeholder(dtype=tf.float32, name='test_accuracy', shape=())
 # define cost
 with tf.name_scope('cost'):
     readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
-    cost = tf.reduce_mean(tf.square(y - readout_action))
+    sess_cost = tf.reduce_mean(tf.square(y - readout_action))
+    tf.summary.scalar('ses_cost', sess_cost)
+    tf.add_to_collection("losses", sess_cost) # add session cost to losses collection
+    cost = tf.add_n(tf.get_collection("losses")) # add every element in the list
     tf.summary.scalar('cost', cost)
 with tf.name_scope('train_accuracy'):
     tf.summary.scalar('train_accuracy', train_accuracy)
@@ -231,7 +239,7 @@ def trainNetwork():
     # saving and loading networks
     saver = tf.train.Saver()
     
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
         # define a summary operation to gather all scalar record
@@ -401,7 +409,7 @@ def trainNetwork():
                         '''
                         Testing
                         '''
-                        if t % SUCCESS_RATE_TEST_STEP == 0:
+                        if (t+1) % SUCCESS_RATE_TEST_STEP == 0:
                         	train_success_rate, test_success_rate = testNetwork()
 				write_success_rate(t, train_success_rate, test_success_rate)
 			

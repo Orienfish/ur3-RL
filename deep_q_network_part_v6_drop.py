@@ -39,7 +39,7 @@ IMAGE_PATH = ['/home/robot/RL/grp1/','/home/robot/RL/grp2/','/home/robot/RL/grp3
 TEST_PATH = ['/home/robot/RL/grp17/','/home/robot/RL/grp18/','/home/robot/RL/grp19/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "new_v1"
+VERSION = "new_v3"
 BASED_VERSION = "v11"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 TRAIN_DIR = "train_" + VERSION
@@ -165,26 +165,27 @@ layer3_input = tf.concat([h_pool2, info_add], 3) # [None, 4, 4, 128]
 h_conv3 = conv2d(layer3_input, W_conv3, 1) + b_conv3
 h_bn3 = tf.layers.batch_normalization(h_conv3, axis=-1, training=training, momentum=0.9)
 h_relu3 = tf.nn.relu(h_bn3) # [None, 4, 4, 64]
-h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
+# h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
 
-# h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
-# h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
-# h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
-# h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
+h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
+h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
+h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
+h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 
-h_pool4_flat = tf.reshape(h_pool3, [-1, 256]) # [None, 256]
+h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
 
-h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
-h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
-h_bn_fc1 = tf.layers.batch_normalization(h_drop_fc1, axis=-1, training=training, momentum=0.9)
+h_drop_fc1 = tf.nn.dropout(h_pool4_flat, keep_prob=0.5)
+h_fc1 = tf.matmul(h_drop_fc1, W_fc1) + b_fc1
+h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
-    
-h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
-h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
-h_bn_fc2 = tf.layers.batch_normalization(h_drop_fc2, axis=-1, training=training, momentum=0.9)
+
+h_drop_fc2 = tf.nn.dropout(h_relu_fc1, keep_prob=0.5)
+h_fc2 = tf.matmul(h_drop_fc2, W_fc2) + b_fc2
+h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
 # readout layer
-readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
+h_drop_fc3 = tf.nn.dropout(h_relu_fc2, keep_prob=0.5)
+readout = tf.matmul(h_drop_fc3, W_fc3) + b_fc3 # [None, 5]
 
 '''
 Neural Network Definitions
