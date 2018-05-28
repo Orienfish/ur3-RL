@@ -36,7 +36,7 @@ TEST_PATH = ['/home/robot/RL/testgrp1/','/home/robot/RL/testgrp2/','/home/robot/
     '/home/robot/RL/testgrp4/', '/home/robot/RL/testgrp5/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "star_v2"
+VERSION = "star_v3"
 BASED_VERSION = "v11"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 TRAIN_DIR = "train_" + VERSION
@@ -72,7 +72,7 @@ ACTIONS = 5 # number of valid actions
 GAMMA = 0.99 # in DQN. decay rate of past observations
 PAST_FRAME = 3 # how many frame in one state
 LEARNING_RATE = 0.0001 # parameter in the optimizer
-NUM_TRAINING_STEPS = 150000 # times of episodes in one folder
+NUM_TRAINING_STEPS = 100000 # times of episodes in one folder
 REPLAY_MEMORY = 500 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
 OBSERVE = 1000. # timesteps to observe before training
@@ -171,14 +171,14 @@ h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 
 h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
 
-h_drop_fc1 = tf.nn.dropout(h_pool4_flat, keep_prob=0.5)
-h_fc1 = tf.matmul(h_drop_fc1, W_fc1) + b_fc1
-h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
+h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
+h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
+h_bn_fc1 = tf.layers.batch_normalization(h_drop_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
-
-h_drop_fc2 = tf.nn.dropout(h_relu_fc1, keep_prob=0.5)
-h_fc2 = tf.matmul(h_drop_fc2, W_fc2) + b_fc2
-h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
+    
+h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
+h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
+h_bn_fc2 = tf.layers.batch_normalization(h_drop_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
 # readout layer
 h_drop_fc3 = tf.nn.dropout(h_relu_fc2, keep_prob=0.5)
