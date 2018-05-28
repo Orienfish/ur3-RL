@@ -21,7 +21,7 @@ import random
 import numpy as np
 from collections import deque
 # import pycontrol as ur
-import trainenv_aa_part_v7_range as env
+import trainenv_aa_v7_range as env
 from ctypes import *
 import matplotlib.pyplot as plt
 import time
@@ -32,10 +32,10 @@ import time
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
 IMAGE_PATH = ['/home/robot/RL/grp1/']
-TEST_PATH = ['/home/robot/RL/grp1/']
+TEST_PATH = ['/home/robot/RL/grp2/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "v7_range"
+VERSION = "v7_all_range"
 BASED_VERSION = "v11"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 TRAIN_DIR = "train_" + VERSION
@@ -77,9 +77,9 @@ BATCH = 32 # size of minibatch
 OBSERVE = 1000. # timesteps to observe before training
 EXPLORE = 150000. # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001 # final value of epsilon
-INITIAL_EPSILON = 0.1 # starting value of epsilon
+INITIAL_EPSILON = 0.01 # starting value of epsilon
 COST_RECORD_STEP = 100
-NETWORK_RECORD_STEP = 100
+NETWORK_RECORD_STEP = 1000
 REWARD_RECORD_STEP = 100
 STEP_RECORD_STEP = 100
 SUCCESS_RATE_TEST_STEP = 1000
@@ -161,21 +161,23 @@ layer3_input = tf.concat([h_pool2, info_add], 3) # [None, 4, 4, 128]
 h_conv3 = conv2d(layer3_input, W_conv3, 1) + b_conv3
 h_bn3 = tf.layers.batch_normalization(h_conv3, axis=-1, training=training, momentum=0.9)
 h_relu3 = tf.nn.relu(h_bn3) # [None, 4, 4, 64]
-# h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
+h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
 
-h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
-h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
-h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
-h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
+# h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
+# h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
+# h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
+# h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 
-h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
+h_pool4_flat = tf.reshape(h_pool3, [-1, 256]) # [None, 256]
 
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
-h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
+h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
+h_bn_fc1 = tf.layers.batch_normalization(h_drop_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
     
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
-h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
+h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
+h_bn_fc2 = tf.layers.batch_normalization(h_drop_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
 # readout layer
 readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
@@ -186,14 +188,17 @@ Neural Network Definitions
 # define the cost function
 a = tf.placeholder(dtype=tf.float32, name='a', shape=(None, ACTIONS))
 y = tf.placeholder(dtype=tf.float32, name='y', shape=(None))
-accuracy = tf.placeholder(dtype=tf.float32, name='accuracy', shape=())
+train_accuracy = tf.placeholder(dtype=tf.float32, name='train_accuracy', shape=())
+test_accuracy = tf.placeholder(dtype=tf.float32, name='test_accuracy', shape=())
 # define cost
 with tf.name_scope('cost'):
     readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
     cost = tf.reduce_mean(tf.square(y - readout_action))
     tf.summary.scalar('cost', cost)
-with tf.name_scope('accuracy'):
-    tf.summary.scalar('accuracy', accuracy)
+with tf.name_scope('train_accuracy'):
+    tf.summary.scalar('train_accuracy', train_accuracy)
+with tf.name_scope('test_accuracy'):
+    tf.summary.scalar('test_accuracy', test_accuracy)
 # define training step
 with tf.name_scope('train'):
     optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
@@ -213,6 +218,8 @@ def trainNetwork():
 
     # init the environment list
     train_env = []
+    train_success_rate = 0.0
+    test_success_rate = 0.0
 
     '''
     Start tensorflow
@@ -259,6 +266,7 @@ def trainNetwork():
                 step = 0 # stpes in one episode
                 
                 # generate the first state, a_past is 0
+                # print(init_angle, init_img_path)
             	img_t = cv2.imread(init_img_path)
             	img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
             	s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
@@ -278,8 +286,8 @@ def trainNetwork():
 			
 			# print(h_pool4_flat_t)
 	                # print(h_relu_fc1_t)
-                        print(h_relu_fc2_t)
-                        print(readout_t)                
+                        # print(h_relu_fc2_t)
+                        # print(readout_t)                
  
                		action_index = 0
                 	# epsilon-greedy
@@ -300,7 +308,7 @@ def trainNetwork():
             		angle_new, img_path_t1, r_t, terminal = train_env[l].step(a_input)
 
                 	# for debug
-                	# print(angle_t1, img_path_t1)
+                	# print(angle_new, img_path_t1)
             
             		img_t1 = cv2.imread(img_path_t1)
             		img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
@@ -312,7 +320,7 @@ def trainNetwork():
             		angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
                         action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
 			past_info_t1 = np.append(action_t1, angle_t1, axis=0)
-                   	print(past_info_t1) 
+                   	# print(past_info_t1) 
             		# store the transition into D
             		D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
             		if len(D) > REPLAY_MEMORY:
@@ -356,7 +364,8 @@ def trainNetwork():
                 				s : s_j_batch,
 						past_info : past_info_j_batch,
 						training : True,
-			                        accuracy : success_rate}
+			                        train_accuracy : train_success_rate,
+                                    		test_accuracy : test_success_rate}
                 			)
                 			train_writer.add_summary(summary_str, t) # write cost to record
             	    		else:
@@ -381,27 +390,24 @@ def trainNetwork():
                         	"/ EPSILON", epsilon, "/ CURRENT ANGLE", train_env[l].cur_state, \
                             	"/ ACTION", a_input, "/ REWARD", r_t, "/ Q_MAX %e" % np.max(readout_t))
                     
-            		# update the old values
-            		s_t = s_t1
-                	angle_t = angle_t1
-			action_t = action_t1
-            		t += 1    # total time steps
-                	rAll += r_t
-                        step += 1
-    
             		# save progress
             		if t % NETWORK_RECORD_STEP == 0:
             	    		saver.save(sess, SAVE_NETWORK_DIR+'/dqn', global_step = t)
-    
-            		
-                	# time.sleep(1)
 
                         '''
                         Testing
                         '''
                         if t % SUCCESS_RATE_TEST_STEP == 0:
-                        	success_rate = testNetwork()
-				write_success_rate(t, success_rate)
+                        	train_success_rate, test_success_rate = testNetwork()
+				write_success_rate(t, train_success_rate, test_success_rate)
+			
+			# update the old values
+			s_t = s_t1
+			angle_t = angle_t1
+			action_t = action_t1
+			t += 1
+			rAll += r_t
+			step += 1
 
                 	if terminal:    
                     		break
@@ -425,16 +431,23 @@ Input: s, action,readout
 Return: success rate
 '''
 def testNetwork():
+    train_env = []
     test_env = []
-    for t in TEST_PATH:
+    for t in IMAGE_PATH:
     	# initialize testing environment
-    	test_env.append(env.FocusEnv(t+DICT_PATH, t+ANGLE_LIMIT_PATH))
-    action_space = test_env[0].actions
-    success_cnt = 0.0
+    	train_env.append(env.FocusEnv(t+DICT_PATH, t+ANGLE_LIMIT_PATH))
+    action_space = train_env[0].actions
+    for t in TEST_PATH:
+        test_env.append(env.FocusEnv(t+DICT_PATH, t+ANGLE_LIMIT_PATH))
+    train_success_cnt = 0.0
+    test_success_cnt = 0.0
 
-    for test in range(TEST_ROUND):
-	for l in range(len(test_env)):
-        	init_angle, init_img_path = test_env[l].reset()
+    '''
+    train set
+    '''
+    for l in range(len(train_env)):
+        for test in range(TEST_ROUND):
+        	init_angle, init_img_path = train_env[l].reset()
                 
         	# generate the first state, a_past is 0
         	img_t = cv2.imread(init_img_path)
@@ -443,7 +456,7 @@ def testNetwork():
         	angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
         	action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
 		past_info_t = np.append(action_t, angle_t, axis=0)
-        	step = 0
+		step = 0
         	# start 1 episode
         	while True:
 	            	# run the network forwardly
@@ -456,10 +469,10 @@ def testNetwork():
             		action_index = np.argmax(readout_t)
             		a_input = action_space[action_index]
             		# run the selected action and observe next state and reward
-            		angle_new, img_path_t1, terminal, success = test_env[l].test_step(a_input)
+            		angle_new, img_path_t1, terminal, success = train_env[l].test_step(a_input)
 
             		if terminal:
-                		success_cnt += int(success)
+                		train_success_cnt += int(success)
                 		break
             
             		img_t1 = cv2.imread(img_path_t1)
@@ -472,8 +485,8 @@ def testNetwork():
             		action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
 	    		past_info_t1 = np.append(action_t1, angle_t1, axis=0)
             		# print test info
-            		print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env[l].dict_path, \
-                		"/ CURRENT ANGLE", test_env[l].cur_state, "/ ACTION", a_input)
+            		print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", train_env[l].dict_path, \
+                		"/ CURRENT ANGLE", train_env[l].cur_state, "/ ACTION", a_input)
 
             		# update
             		s_t = s_t1
@@ -481,23 +494,77 @@ def testNetwork():
 	    		angle_t = angle_t1
             		step += 1
 
-    success_rate = success_cnt / (TEST_ROUND * len(test_env))
-    print("success_rate:", success_rate)
-    return success_rate
+    '''
+    test set
+    '''          
+    for l in range(len(test_env)):
+        for test in range(TEST_ROUND):
+            init_angle, init_img_path = test_env[l].reset()
+                
+            # generate the first state, a_past is 0
+            img_t = cv2.imread(init_img_path)
+            img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+            s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
+            angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
+            action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
+            past_info_t = np.append(action_t, angle_t, axis=0)
+            step = 0
+            # start 1 episode
+            while True:
+                    # run the network forwardly
+                    readout_t = readout.eval(feed_dict={
+                	s : [s_t], 
+                	past_info : [past_info_t],
+                	training : False})[0]
+                    print(readout_t)
+                    # determine the next action
+                    action_index = np.argmax(readout_t)
+                    a_input = action_space[action_index]
+                    # run the selected action and observe next state and reward
+                    angle_new, img_path_t1, terminal, success = test_env[l].test_step(a_input)
+
+                    if terminal:
+                        test_success_cnt += int(success)
+                        break
+            
+                    img_t1 = cv2.imread(img_path_t1)
+                    img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+                    img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
+                    angle_new = np.reshape(angle_new/ANGLE_NORM, (1,))
+                    action_new = np.reshape(a_input/ACTION_NORM, (1,))
+                    s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
+                    angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
+                    action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
+                    past_info_t1 = np.append(action_t1, angle_t1, axis=0)
+                    # print test info
+                    print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env[l].dict_path, \
+                        "/ CURRENT ANGLE", test_env[l].cur_state, "/ ACTION", a_input)
+
+                    # update
+                    s_t = s_t1
+                    action_t = action_t1
+                    angle_t = angle_t1
+                    step += 1
+
+
+    train_success_rate = train_success_cnt / (TEST_ROUND * len(train_env))
+    test_success_rate = test_success_cnt / (TEST_ROUND * len(test_env))
+    print("train success rate:", train_success_rate, "test success rate", test_success_rate)
+    return train_success_rate, test_success_rate
 
 '''
 write_success_rate - write test result to txt file
 
 Note: If it's the first time record(t = 0), need to erase the past data completely.
 '''
-def write_success_rate(t, success_rate):
+def write_success_rate(t, train_success_rate, test_success_rate):
     if t == 0:
         with open(FILE_SUCCESS, 'w') as f:
-            txtData = str(success_rate) +'\n'
+            txtData = str(train_success_rate) + ' ' + str(test_success_rate) + '\n'
             f.write(txtData)
     else:
         with open(FILE_SUCCESS, 'a+') as f:
-            txtData = str(success_rate) +'\n'
+            txtData = str(train_success_rate) + ' ' + str(test_success_rate) + '\n'
             f.write(txtData)
     return
 
@@ -535,8 +602,8 @@ Input: rList - the record of reward changing
 def plot_data():
     rList = []
     stepList = []
-    successList = []
-    file
+    train_successList = []
+    test_successList = []
     with open(FILE_REWARD, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -548,7 +615,9 @@ def plot_data():
     with open(FILE_SUCCESS, 'r') as f:
         lines = f.readlines()
         for line in lines:
-            successList.append(float(line))
+            lineData = line.split()
+            train_successList.append(float(lineData[0]))
+            test_successList.append(float(lineData[1]))
     plt.figure()
     # plot rList
     plt.subplot(221)
@@ -563,10 +632,16 @@ def plot_data():
     plt.ylabel('steps')
 
     # plot stepList
-    plt.subplot(212)
-    plt.plot(successList, 'g')
+    plt.subplot(223)
+    plt.plot(train_successList, 'g')
     plt.xlabel('episode({})'.format(SUCCESS_RATE_TEST_STEP))
-    plt.ylabel('accuracy')
+    plt.ylabel('train accuracy')
+
+    # plot stepList
+    plt.subplot(224)
+    plt.plot(test_successList, 'b')
+    plt.xlabel('episode({})'.format(SUCCESS_RATE_TEST_STEP))
+    plt.ylabel('test accuracy')
 
     # save this figure
     plt.savefig(TRAIN_DIR + '/result_' + str(VERSION), dpi=1200)
