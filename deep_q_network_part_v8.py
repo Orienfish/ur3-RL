@@ -36,7 +36,7 @@ TEST_PATH = ['/home/robot/RL/testgrp1/','/home/robot/RL/testgrp2/','/home/robot/
     '/home/robot/RL/testgrp4/', '/home/robot/RL/testgrp5/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "star_v1"
+VERSION = "star_v2"
 BASED_VERSION = "v11"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 TRAIN_DIR = "train_" + VERSION
@@ -72,18 +72,18 @@ ACTIONS = 5 # number of valid actions
 GAMMA = 0.99 # in DQN. decay rate of past observations
 PAST_FRAME = 3 # how many frame in one state
 LEARNING_RATE = 0.0001 # parameter in the optimizer
-NUM_TRAINING_STEPS = 50000 # times of episodes in one folder
+NUM_TRAINING_STEPS = 150000 # times of episodes in one folder
 REPLAY_MEMORY = 500 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
 OBSERVE = 1000. # timesteps to observe before training
-EXPLORE = 30000. # frames over which to anneal epsilon
+EXPLORE = 80000. # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.01 # starting value of epsilon
-COST_RECORD_STEP = 500
+COST_RECORD_STEP = 100
 NETWORK_RECORD_STEP = 1000
 REWARD_RECORD_STEP = 100
 STEP_RECORD_STEP = 100
-SUCCESS_RATE_TEST_STEP = 4000
+SUCCESS_RATE_TEST_STEP = 1000
 TEST_ROUND = 20 # how many episodes in the test
 # This file is the dqn reinforcement learning.
 
@@ -288,8 +288,8 @@ def trainNetwork():
 			
 			# print(h_pool4_flat_t)
 	                # print(h_relu_fc1_t)
-                        print(h_relu_fc2_t)
-                        print(readout_t)                
+                    #    print(h_relu_fc2_t)
+                    #    print(readout_t)                
  
                		action_index = 0
                 	# epsilon-greedy
