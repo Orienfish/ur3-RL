@@ -31,12 +31,13 @@ import time
 # Important global parameters
 ###################################################################################
 PATH = os.path.split(os.path.realpath(__file__))[0]
-ANGLE_LIMIT_PATH = 'angle.txt'
+ANGLE_LIMIT_PATH = 'testgrp5/angle.txt'
+ANGLE_LIMIT_PATH = os.path.join(PATH, ANGLE_LIMIT_PATH)
 # specify the version of the test model
 VERSION = "real"
-BASED_VERSION = "v15"
-LOG_DIR = "/tmp/logdir/train_part_" + VERSION
-TRAIN_DIR = "train_" + VERSION
+BASED_VERSION = "testgrp5_nodrop_m"
+LOG_DIR = "/tmp/logdir/realtrain_" + VERSION
+TRAIN_DIR = "realtrain_" + VERSION
 TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
 # if directory does not exist, new it
 if not os.path.isdir(TRAIN_DIR):
@@ -44,15 +45,15 @@ if not os.path.isdir(TRAIN_DIR):
 BASED_DIR = "train_" + BASED_VERSION
 BASED_DIR = os.path.join(PATH, BASED_DIR)
 # the following files are all in training directories
-READ_NETWORK_DIR = "saved_networks_part_" + VERSION
+READ_NETWORK_DIR = "saved_networks_part_" + BASED_VERSION
 READ_NETWORK_DIR = os.path.join(BASED_DIR, READ_NETWORK_DIR)
 SAVE_NETWORK_DIR = "saved_networks_part_" + VERSION
 SAVE_NETWORK_DIR = os.path.join(TRAIN_DIR, SAVE_NETWORK_DIR)
 # saved networks are in train directory of specified version
 if not os.path.isdir(SAVE_NETWORK_DIR):
     os.makedirs(SAVE_NETWORK_DIR)
-FILE_SUCCESS = "success_rate_" + VERSION + ".txt"
-FILE_SUCCESS = os.path.join(TRAIN_DIR, FILE_SUCCESS)
+# FILE_SUCCESS = "success_rate_" + VERSION + ".txt"
+# FILE_SUCCESS = os.path.join(TRAIN_DIR, FILE_SUCCESS)
 FILE_REWARD = "total_reward_" + VERSION + ".txt"
 FILE_REWARD = os.path.join(TRAIN_DIR, FILE_REWARD)
 FILE_STEP = "step_cnt_" + VERSION + ".txt"
@@ -61,7 +62,7 @@ FILE_STEP = os.path.join(TRAIN_DIR, FILE_STEP)
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
 # normalize the action
-ACTION_NORM = 2.7
+ACTION_NORM = 0.3*8.78
 ANGLE_NORM = 100
 
 # parameters used in training
@@ -69,17 +70,17 @@ ACTIONS = 5 # number of valid actions
 GAMMA = 0.99 # in DQN. decay rate of past observations
 PAST_FRAME = 3 # how many frame in one state
 LEARNING_RATE = 0.0001 # parameter in the optimizer
-NUM_TRAINING_STEPS = 100000 # times of episodes in one folder
-REPLAY_MEMORY = 500 # number of previous transitions to remember
+NUM_TRAINING_STEPS = 1000 # times of episodes in one folder
+REPLAY_MEMORY = 100 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
-OBSERVE = 1000. # timesteps to observe before training
-EXPLORE = 60000. # frames over which to anneal epsilon
+OBSERVE = 100. # timesteps to observe before training
+EXPLORE = 600. # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.01 # starting value of epsilon
-COST_RECORD_STEP = 100
+COST_RECORD_STEP = 10
 NETWORK_RECORD_STEP = 100
-REWARD_RECORD_STEP = 100
-STEP_RECORD_STEP = 100
+REWARD_RECORD_STEP = 10
+STEP_RECORD_STEP = 10
 
 ###################################################################################
 # Functions
@@ -181,14 +182,11 @@ Neural Network Definitions
 # define the cost function
 a = tf.placeholder(dtype=tf.float32, name='a', shape=(None, ACTIONS))
 y = tf.placeholder(dtype=tf.float32, name='y', shape=(None))
-accuracy = tf.placeholder(dtype=tf.float32, name='accuracy', shape=())
 # define cost
 with tf.name_scope('cost'):
     readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
     cost = tf.reduce_mean(tf.square(y - readout_action))
     tf.summary.scalar('cost', cost)
-with tf.name_scope('accuracy'):
-    tf.summary.scalar('accuracy', accuracy)
 # define training step
 with tf.name_scope('train'):
     optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
@@ -205,9 +203,9 @@ def trainNetwork():
     '''
     # store the previous observations in replay memory
     D = deque()
-
-    # init the environment list
-    train_env = []
+    # init training environment
+    train_env = env.FocusEnv(ANGLE_LIMIT_PATH, TRAIN_DIR)
+    action_space = train_env.actions
 
     '''
     Start tensorflow
@@ -237,9 +235,6 @@ def trainNetwork():
         t = 0 # total training steps count
         i = 0 # num of episodes
 
-        train_env = env.FocusEnv(ANGLE_LIMIT_PATH)
-        action_space = train_env.actions
-
         # This file is the dqn reinforcement learning.
         # start
         while t < NUM_TRAINING_STEPS:
@@ -251,21 +246,19 @@ def trainNetwork():
             # generate the first state, a_past is 0
             img_t = cv2.imread(init_img_path)
             img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-            s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
-            action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
-	    angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
+            s_t = np.stack((img_t, img_t, img_t) , axis=2)
+            action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+            angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
 	    past_info_t = np.append(action_t, angle_t, axis=0)
 
             # start one episode
             while True:
                 # readout_t = readout.eval(feed_dict={s:[s_t], action:[action_t]})[0]
-                readout_t, h_pool4_flat_t, h_relu_fc1_t, h_relu_fc2_t = sess.run([readout, h_pool4_flat, h_relu_fc1, h_relu_fc2], feed_dict={
+                readout_t = sess.run([readout, h_pool4_flat, h_relu_fc1, h_relu_fc2], feed_dict={
 			s : [s_t], 
 			past_info : [past_info_t],
-			training : False}
-		)
-                readout_t = readout_t[0]
-			
+			training : False})[0]
+	        print(past_info_t)
                 print(readout_t)                
  
                	action_index = 0
@@ -299,7 +292,6 @@ def trainNetwork():
             	angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
                 action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
 	        past_info_t1 = np.append(action_t1, angle_t1, axis=0)
-                print(past_info_t1) 
             	# store the transition into D
             	D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
             	if len(D) > REPLAY_MEMORY:
@@ -371,6 +363,7 @@ def trainNetwork():
             	s_t = s_t1
                 angle_t = angle_t1
 		action_t = action_t1
+                past_info_t = np.append(action_t, angle_t, axis=0)
             	t += 1    # total time steps
                 rAll += r_t
                 step += 1
@@ -428,7 +421,6 @@ Input: rList - the record of reward changing
 def plot_data():
     rList = []
     stepList = []
-    successList = []
     file
     with open(FILE_REWARD, 'r') as f:
         lines = f.readlines()
@@ -438,28 +430,19 @@ def plot_data():
         lines = f.readlines()
         for line in lines:
             stepList.append(float(line))
-    with open(FILE_SUCCESS, 'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            successList.append(float(line))
     plt.figure()
     # plot rList
-    plt.subplot(221)
+    plt.subplot(211)
     plt.plot(rList, 'b')
     plt.xlabel('episode({})'.format(REWARD_RECORD_STEP))
     plt.ylabel('reward')
 
     # plot stepList
-    plt.subplot(222)
+    plt.subplot(212)
     plt.plot(stepList, 'r')
     plt.xlabel('episode({})'.format(STEP_RECORD_STEP))
     plt.ylabel('steps')
 
-    # plot stepList
-    plt.subplot(212)
-    plt.plot(successList, 'g')
-    plt.xlabel('episode({})'.format(SUCCESS_RATE_TEST_STEP))
-    plt.ylabel('accuracy')
 
     # save this figure
     plt.savefig(TRAIN_DIR + '/result_' + str(VERSION), dpi=1200)

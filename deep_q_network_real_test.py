@@ -12,9 +12,9 @@ import os
 import sys
 import random
 import numpy as np
-# import pycontrol as ur
 import realenv_test as env
 import matplotlib.pyplot as plt
+# import collect_code.pycontrol as ur
 
 ###################################################################################
 # Important global parameters
@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
 # specify the version of test model
-VERSION = "v124"
+VERSION = "testgrp5_nodrop_m"
 TRAIN_DIR = "train_" + VERSION
 TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
 # the following files are all in training directories
@@ -37,13 +37,13 @@ if not os.path.isdir(TEST_DIR):
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
 # normalize the action
-ACTION_NORM = 2.7
+ACTION_NORM = 0.3*8.78
 ANGLE_NORM = 100
 
 # parameters used in testing
 ACTIONS = 5 # number of valid actions
 PAST_FRAME = 3
-TEST_ROUND = 20
+TEST_ROUND = 10
 
 ###################################################################################
 # Functions
@@ -172,12 +172,14 @@ def testNetwork():
     # init the real test environment
     test_env = env.FocusEnv()
     action_space = test_env.actions
+    endAngle = []
     '''
     Start tensorflow
     '''
+
     # saving and loading networks
     saver = tf.train.Saver()
-    
+
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -199,9 +201,9 @@ def testNetwork():
 	    # generate the first state, a_past is 0
 	    img_t = cv2.imread(init_img_path)
 	    img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-	    s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
-	    angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
-	    action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
+	    s_t = np.stack((img_t, img_t, img_t) , axis=2)
+            action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+            angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
 	    past_info_t = np.append(action_t, angle_t, axis=0)
 	    step = 1
 	    # start 1 episode
@@ -211,6 +213,7 @@ def testNetwork():
 			s : [s_t], 
 			past_info : [past_info_t],
 			training : False})[0]
+        	print(past_info_t)
 		print(readout_t)
 		# determine the next action
 		action_index = np.argmax(readout_t)
@@ -222,6 +225,8 @@ def testNetwork():
 			# save_last_pic(test, test_env.cur_state, test_env.dic[test_env.cur_state])
 		        success_cnt += int(success) # only represents the rate of active terminate
 		        total_steps += step
+            	        endAngle.append(angle_new)
+                        print("end at", angle_new)
 			save_terminal_pic(test, angle_new, img_path_t1)
 		        break
 		            
@@ -235,19 +240,48 @@ def testNetwork():
 		action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
 	        past_info_t1 = np.append(action_t1, angle_t1, axis=0)
 		# print test info
-		print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", \
+		print("TEST EPISODE", test, "/ TIMESTEP", step, \
 			"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
 
 		# update
 		s_t = s_t1
 		action_t = action_t1
 		angle_t = angle_t1
+		past_info_t = np.append(action_t, angle_t, axis=0)
 		step += 1
 
     success_rate = success_cnt/TEST_ROUND
     step_cost = total_steps/TEST_ROUND
     print("success_rate:", success_rate, "step per episode:", step_cost)
+    
+    record_and_plot(endAngle)
     return success_rate
+
+def TENG(img):
+        guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
+        guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
+        return np.mean(guassianX * guassianX + 
+                          guassianY * guassianY)
+
+'''
+record_and_plot
+'''
+def record_and_plot(endAngle):
+    angle_path = os.path.join(TEST_DIR, "endAngle.txt")
+    endFocus = []
+    with open(angle_path, "w") as f:
+        for i in range(TEST_ROUND):
+            pic_name = str(i) + '.jpg'
+            pic_path = os.path.join(TEST_DIR, pic_name)
+            img = cv2.imread(pic_path)
+            img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY) 
+            endFocus.append(TENG(img))
+            f.write(str(endAngle[i]) + ' ' + str(endFocus[i]) + '\n')
+    
+    plt.figure()
+    plt.plot(endAngle, endFocus, 'bx')
+    plt.savefig(os.path.join(TEST_DIR, "result"), dpi=1200)
+    plt.show()
 
 '''
 save_terminal_pic - save the final picture and use the episode num and
@@ -256,8 +290,9 @@ save_terminal_pic - save the final picture and use the episode num and
 def save_terminal_pic(epi_num, angle_new, img_path_t1):
     img = cv2.imread(img_path_t1)
     # to avoid '.' appears in file name
-    new_pic_name = str(epi_num) + '_' + str(angle_new).replace(".", "_", 1)
+    new_pic_name = str(epi_num) + '.jpg'
     new_pic_path = os.path.join(TEST_DIR, new_pic_name)
+    print(new_pic_path)
     cv2.imwrite(new_pic_path, img)
 
 if __name__ == '__main__':

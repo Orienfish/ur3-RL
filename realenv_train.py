@@ -9,55 +9,68 @@ import random
 import time
 import cv2
 import numpy
-import pycontrol as ur
+import collect_code.pycontrol as ur
 #################################################################
 # Important global parameters
 #################################################################
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
-PIC_NAME = 'pic.jpg'
 # IMAGE_PATH = '/home/robot/RL/grp1'
 SUCCESS_REWARD = 100
 FAILURE_REWARD = -100
 ACTION_REWARD = 1
-MAX_STEPS = 15
+MAX_STEPS = 20
 # maximum and minimum limitations, a little different from collectenv.py
 # only part of the data is used: from 150.jpg to 180.jpg
-MAX_ANGLE = 54.0
-MIN_ANGLE = 45.0
-CHANGE_POINT_RANGE = 1.1
+MAX_ANGLE = 69.0
+MIN_ANGLE = 30.0
+CHANGE_POINT_RANGE = 1.5
 # actions
-COARSE_POS = 0.3*9
+COARSE_POS = 0.3*8.78
 FINE_POS = 0.3
 TERMINAL = 0
 FINE_NEG = -0.3
-COARSE_NEG = -0.3*9
+COARSE_NEG = -0.3*8.78
+TIMES = 8.78
 
 class FocusEnv():
-    def __init__(self, ANGLE_LIMIT_PATH):
+    def __init__(self, ANGLE_LIMIT_PATH, SAVE_PIC_PATH):
 	# COARSE NEG, FINE NEG, TERMINAL, FINE POS, COARSE POS
 	self.actions = [COARSE_NEG, FINE_NEG, TERMINAL, FINE_POS, COARSE_POS]
 	self.angle_path = ANGLE_LIMIT_PATH
 	self.cur_state = 0.0 # initial with 0
+	self.episode = 0
+	self.save_pic_path = SAVE_PIC_PATH
+	# the terminal angle should be acknouwledged during the training process
+	self.import_angle()
 	ur.system_init()
+
+    def __del__(self):
+	ur.system_close()
 
     def reset(self):
     	# record the final state of last episode
     	last_state = self.cur_state
     	last_state = round(last_state, 2) # just in case
-    	# the terminal angle should be acknouwledged during the training process
-	self.import_terminal_angle()
 	# randomly decide the new initial state
 	state = random.random() * (MAX_ANGLE - MIN_ANGLE)
 	self.cur_state = MIN_ANGLE + state
 	self.cur_state = round(self.cur_state, 2)
 	self.cur_step = 0
+	self.episode = self.episode + 1
+	# fugure out the place to save pic
+	self.save_pic_dir = os.path.join(self.save_pic_path, str(self.episode))
+	if not os.path.isdir(self.save_pic_dir):
+		os.makedirs(self.save_pic_dir)
+	pic_name = str(self.cur_step) + '_' + str(self.cur_state).replace('.', '_') + '.jpg'
+	pic_name = os.path.join(self.save_pic_dir, pic_name)
 	# move from 0 to the initial state and take a pic
 	# return the angle of first state and the name of the pic
+	print("init angle:", self.cur_state)
 	self.move(last_state, self.cur_state)
-	ur.camera_take_pic(PIC_NAME)
+	ur.camera_take_pic(pic_name)
 
-	return self.cur_state, os.path.join(PATH, PIC_NAME)
+	return self.cur_state, os.path.join(PATH, pic_name)
 
     '''
     step - regulations of transfering between states
@@ -70,6 +83,8 @@ class FocusEnv():
     '''
     def step(self, input_action): # action is the angle to move
     	self.cur_step = self.cur_step + 1
+    	pic_name = str(self.cur_step) + '_' + str(self.cur_state).replace('.', '_') + '.jpg'
+    	pic_name = os.path.join(self.save_pic_dir, pic_name)
     	last_state = self.cur_state
     	last_state = round(last_state, 2) # just in case
     	# update self.cur_state 
@@ -84,8 +99,8 @@ class FocusEnv():
         	ur.send_movej_screw(ur.UP)
         elif input_action < 0: # DOWN
         	ur.send_movej_screw(ur.DOWN)
-        ur.camera_take_pic(PIC_NAME)
-        next_image_path = os.path.join(PATH, PIC_NAME)
+        ur.camera_take_pic(pic_name)
+        next_image_path = pic_name
 
     	# special termination
     	if self.cur_state > MAX_ANGLE or self.cur_state < MIN_ANGLE:
@@ -121,13 +136,13 @@ class FocusEnv():
 			action_reward = ACTION_REWARD
 	return self.cur_state, next_image_path, action_reward + self.get_reward(self.cur_state), False
 	
-	'''
+    '''
     def TENG(self, img):
     	guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     	guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     	return numpy.mean(guassianX * guassianX + 
     					  guassianY * guassianY)
-	'''
+    '''
 
     def import_angle(self):
 	with open(self.angle_path, "r") as txtData:
@@ -156,24 +171,16 @@ class FocusEnv():
     move - move the ur3 from start_angle to end_angle
     '''
     def move(self, start_angle, end_angle):
-	ur.move_from_to(start_angle, end_angle)
-	print("move from", start_angle, end_angle)
-
-########################################################################
-# Main - test the environment
-########################################################################
-if __name__ == '__main__':
-	ANGLE_LIMIT_PATH = '/home/robot/RL/grp1/angle.txt'
-	myenv = FocusEnv(ANGLE_LIMIT_PATH)
-	myenv.reset()
-	while True:
-		while True:
-			ac = myenv.actions[int(random.random()*len(myenv.actions))]
-			
-		next_state, next_image, r, t = myenv.step(ac)
-
-		if t: break
-
-		print "%f->%f, a:%f, r:%d, t:%d, %s" %(cur_state, next_state, ac, r, t, next_image)
-		cur_state = next_state
-		time.sleep(0.2)
+	print("move from", start_angle, "to", end_angle)
+    	if abs(end_angle - start_angle) > 10:
+		delta_angle = (end_angle - start_angle) / TIMES
+                delta_angle = round(delta_angle, 2)
+    		print("COARSE move", delta_angle)
+    		ur.change_focus_mode(ur.COARSE)
+    		ur.move_from_to(delta_angle)
+    	else:
+		delta_angle = round(end_angle - start_angle, 2)
+		print("FINE move", delta_angle)
+		ur.change_focus_mode(ur.FINE)
+		ur.move_from_to(delta_angle)
+		
