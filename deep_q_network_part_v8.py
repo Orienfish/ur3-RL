@@ -36,7 +36,7 @@ TEST_PATH = ['/home/robot/RL/testgrp1/','/home/robot/RL/testgrp2/','/home/robot/
     '/home/robot/RL/testgrp4/', '/home/robot/RL/testgrp5/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
-VERSION = "star_v3"
+VERSION = "star_without_drop"
 BASED_VERSION = "v11"
 LOG_DIR = "/tmp/logdir/train_part_" + VERSION
 TRAIN_DIR = "train_" + VERSION
@@ -172,17 +172,16 @@ h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
 
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
-h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
-h_bn_fc1 = tf.layers.batch_normalization(h_drop_fc1, axis=-1, training=training, momentum=0.9)
+# h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
+h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
     
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
-h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
-h_bn_fc2 = tf.layers.batch_normalization(h_drop_fc2, axis=-1, training=training, momentum=0.9)
+# h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
+h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
 # readout layer
-h_drop_fc3 = tf.nn.dropout(h_relu_fc2, keep_prob=0.5)
-readout = tf.matmul(h_drop_fc3, W_fc3) + b_fc3 # [None, 5]
+readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
 
 '''
 Neural Network Definitions
@@ -271,9 +270,9 @@ def trainNetwork():
                 # print(init_angle, init_img_path)
             	img_t = cv2.imread(init_img_path)
             	img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-            	s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
-                action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
-		angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
+            	s_t = np.stack((img_t, img_t, img_t) , axis=2)
+                action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+	        angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
 		past_info_t = np.append(action_t, angle_t, axis=0)
 
             	# start one episode
@@ -288,8 +287,9 @@ def trainNetwork():
 			
 			# print(h_pool4_flat_t)
 	                # print(h_relu_fc1_t)
-                    #    print(h_relu_fc2_t)
-                    #    print(readout_t)                
+                        # print(h_relu_fc2_t)
+                        print(past_info_t)
+			print(readout_t)                
  
                		action_index = 0
                 	# epsilon-greedy
@@ -322,7 +322,7 @@ def trainNetwork():
             		angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
                         action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
 			past_info_t1 = np.append(action_t1, angle_t1, axis=0)
-                   	print(past_info_t1) 
+                   	# print(past_info_t1) 
             		# store the transition into D
             		D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
             		if len(D) > REPLAY_MEMORY:
@@ -399,7 +399,7 @@ def trainNetwork():
                         '''
                         Testing
                         '''
-                        if t % SUCCESS_RATE_TEST_STEP == 0:
+                        if (t+1) % SUCCESS_RATE_TEST_STEP == 0:
                         	train_success_rate, test_success_rate = testNetwork()
 				write_success_rate(t, train_success_rate, test_success_rate)
 			
@@ -407,6 +407,7 @@ def trainNetwork():
 			s_t = s_t1
 			angle_t = angle_t1
 			action_t = action_t1
+			past_info_t = np.append(action_t, angle_t, axis=0)
 			t += 1
 			rAll += r_t
 			step += 1
@@ -454,9 +455,9 @@ def testNetwork():
         	# generate the first state, a_past is 0
         	img_t = cv2.imread(init_img_path)
         	img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-        	s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
-        	angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
-        	action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
+        	s_t = np.stack((img_t, img_t, img_t) , axis=2)
+                action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+        	angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
 		past_info_t = np.append(action_t, angle_t, axis=0)
 		step = 0
         	# start 1 episode
@@ -466,7 +467,8 @@ def testNetwork():
 				s : [s_t], 
 				past_info : [past_info_t],
 				training : False})[0]
-	    		print(readout_t)
+	    		print(past_info_t)
+			print(readout_t)
             		# determine the next action
             		action_index = np.argmax(readout_t)
             		a_input = action_space[action_index]
@@ -494,6 +496,7 @@ def testNetwork():
             		s_t = s_t1
             		action_t = action_t1
 	    		angle_t = angle_t1
+			past_info_t = np.append(action_t, angle_t, axis=0)
             		step += 1
 
     '''
@@ -506,9 +509,9 @@ def testNetwork():
             # generate the first state, a_past is 0
             img_t = cv2.imread(init_img_path)
             img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-            s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
-            angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
-            action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
+            s_t = np.stack((img_t, img_t, img_t) , axis=2)
+            action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+            angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
             past_info_t = np.append(action_t, angle_t, axis=0)
             step = 0
             # start 1 episode
@@ -518,7 +521,8 @@ def testNetwork():
                 	s : [s_t], 
                 	past_info : [past_info_t],
                 	training : False})[0]
-                    print(readout_t)
+                    print(past_info_t)
+		    print(readout_t)
                     # determine the next action
                     action_index = np.argmax(readout_t)
                     a_input = action_space[action_index]
@@ -546,6 +550,7 @@ def testNetwork():
                     s_t = s_t1
                     action_t = action_t1
                     angle_t = angle_t1
+		    past_info_t = np.append(action_t, angle_t, axis=0)
                     step += 1
 
 

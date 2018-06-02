@@ -21,12 +21,11 @@ import matplotlib.pyplot as plt
 ###################################################################################
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
-TEST_PATH = ['/home/robot/RL/grp1/','/home/robot/RL/grp2/','/home/robot/RL/grp3/',\
-    '/home/robot/RL/grp4/']
+TEST_PATH = ['/home/robot/RL/testgrp5/']
 DICT_PATH = 'dict.txt'
 ANGLE_LIMIT_PATH = 'angle.txt'
 # specify the version of test model
-VERSION = "v124"
+VERSION = "testgrp5_nodrop_m"
 TRAIN_DIR = "train_" + VERSION
 TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
 # the following files are all in training directories
@@ -42,7 +41,7 @@ ANGLE_NORM = 100
 # parameters used in testing
 ACTIONS = 5 # number of valid actions
 PAST_FRAME = 3
-TEST_ROUND = 1000
+TEST_ROUND = 100
 
 ###################################################################################
 # Functions
@@ -206,9 +205,9 @@ def testNetwork():
 		    # generate the first state, a_past is 0
 		    img_t = cv2.imread(init_img_path)
 		    img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-		    s_t = np.stack((img_t for k in range(PAST_FRAME)), axis=2)
-		    angle_t = np.stack((init_angle/ANGLE_NORM for k in range(PAST_FRAME)), axis=0)
-		    action_t = np.stack((0.0 for k in range(PAST_FRAME)), axis=0)
+		    s_t = np.stack((img_t, img_t, img_t) , axis=2)
+                    action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+    		    angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
 		    past_info_t = np.append(action_t, angle_t, axis=0)
 		    step = 1
 		    # start 1 episode
@@ -218,6 +217,7 @@ def testNetwork():
 				s : [s_t], 
 				past_info : [past_info_t],
 				training : False})[0]
+	                print(past_info_t)
 			print(readout_t)
 			# determine the next action
 			action_index = np.argmax(readout_t)
@@ -248,6 +248,7 @@ def testNetwork():
 			s_t = s_t1
 			action_t = action_t1
 			angle_t = angle_t1
+            		past_info_t = np.append(action_t, angle_t, axis=0)
 			step += 1
 
     		success_rate.append(success_cnt/TEST_ROUND)
