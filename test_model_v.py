@@ -13,7 +13,7 @@ import sys
 import random
 import numpy as np
 # import pycontrol as ur
-import trainenv_aa_part_v8_rt as env
+import trainenv_a_v1 as env
 import matplotlib.pyplot as plt
 
 ###################################################################################
@@ -21,27 +21,24 @@ import matplotlib.pyplot as plt
 ###################################################################################
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
-TEST_PATH = ['/home/robot/RL/testgrp5/']
-DICT_PATH = 'dict.txt'
-ANGLE_LIMIT_PATH = 'angle.txt'
+TEST_PATH = ['/home/robot/RL/data/new_grp1']
 # specify the version of test model
-VERSION = "testgrp5_nodrop_m"
-TRAIN_DIR = "train_" + VERSION
+VERSION = "n1_noangle_lr"
+TRAIN_DIR = "training/" + VERSION
 TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
 # the following files are all in training directories
-READ_NETWORK_DIR = "saved_networks_part_" + VERSION
+READ_NETWORK_DIR = "saved_networks_" + VERSION
 READ_NETWORK_DIR = os.path.join(TRAIN_DIR, READ_NETWORK_DIR)
 # used in pre-process the picture
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
 # normalize the action
-ACTION_NORM = 2.7
-ANGLE_NORM = 100
+ACTION_NORM = 0.3*env.TIMES
 
 # parameters used in testing
 ACTIONS = 5 # number of valid actions
 PAST_FRAME = 3
-TEST_ROUND = 100
+TEST_ROUND = 1000
 
 ###################################################################################
 # Functions
@@ -89,13 +86,13 @@ b_fc2 = bias_variable([256])
 W_fc3 = weight_variable([256, ACTIONS])
 b_fc3 = bias_variable([ACTIONS])
 
-W_fc_info = weight_variable([PAST_FRAME*2, 64])
+W_fc_info = weight_variable([PAST_FRAME, 64])
 b_fc_info = bias_variable([64])
 
 # input layer
 # one state to train each time
 s = tf.placeholder(dtype=tf.float32, name='s', shape=(None, RESIZE_WIDTH, RESIZE_HEIGHT, PAST_FRAME))
-past_info = tf.placeholder(dtype=tf.float32, name='past_info', shape=(None, PAST_FRAME*2))
+past_info = tf.placeholder(dtype=tf.float32, name='past_info', shape=(None, PAST_FRAME))
 training = tf.placeholder_with_default(False, name='training', shape=())
 
 # hidden layers
@@ -128,12 +125,15 @@ h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
 
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
+# h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
 h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
     
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
+# h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
 h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
+
 # readout layer
 readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
 
@@ -170,7 +170,7 @@ def testNetwork():
     # init the virtual test environment
     test_env = []
     for p in TEST_PATH:
-    	test_env.append(env.FocusEnv(p+DICT_PATH, p+ANGLE_LIMIT_PATH))
+    	test_env.append(env.FocusEnv(p))
     action_space = test_env[0].actions
     '''
     Start tensorflow
@@ -190,12 +190,12 @@ def testNetwork():
         else:
                 print("Could not find old network weights")
     	
-    	test_grp = []
+        test_grp = []
     	success_rate = []
     	step_cost = []
         # start test
         for l in range(len(test_env)):
-        	test_grp.append(test_env[l].dict_path)
+        	test_grp.append(test_env[l].train_data_dir)
         	success_cnt = 0.0
         	total_steps = 0.0
 		for test in range(TEST_ROUND):
@@ -207,8 +207,7 @@ def testNetwork():
 		    img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 		    s_t = np.stack((img_t, img_t, img_t) , axis=2)
                     action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-    		    angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
-		    past_info_t = np.append(action_t, angle_t, axis=0)
+		    past_info_t = action_t
 		    step = 1
 		    # start 1 episode
 		    while True:
@@ -234,21 +233,18 @@ def testNetwork():
 			img_t1 = cv2.imread(img_path_t1)
 			img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 			img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-			angle_new = np.reshape(angle_new/ANGLE_NORM, (1,))
 			action_new = np.reshape(a_input/ACTION_NORM, (1,))
 			s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-			angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
 			action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-		        past_info_t1 = np.append(action_t1, angle_t1, axis=0)
+		        past_info_t1 = action_t1
 			# print test info
-			print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env[l].dict_path, \
+			print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env[l].train_data_dir, \
 				"/ CURRENT ANGLE", test_env[l].cur_state, "/ ACTION", a_input)
 
 			# update
 			s_t = s_t1
 			action_t = action_t1
-			angle_t = angle_t1
-            		past_info_t = np.append(action_t, angle_t, axis=0)
+            		past_info_t = action_t
 			step += 1
 
     		success_rate.append(success_cnt/TEST_ROUND)
