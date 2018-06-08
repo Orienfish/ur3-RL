@@ -22,14 +22,14 @@ import matplotlib.pyplot as plt
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
 # specify the version of test model
-VERSION = "testgrp5_nodrop_m"
-TRAIN_DIR = "train_" + VERSION
+VERSION = "n1_noangle"
+TRAIN_DIR = "training/" + VERSION
 TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
 # the following files are all in training directories
-READ_NETWORK_DIR = "saved_networks_part_" + VERSION
+READ_NETWORK_DIR = "saved_networks_" + VERSION
 READ_NETWORK_DIR = os.path.join(TRAIN_DIR, READ_NETWORK_DIR)
 # test result folder
-TEST_DIR = "real_test_" + VERSION
+TEST_DIR = "testing/" + VERSION
 TEST_DIR = os.path.join(PATH, TEST_DIR)
 if not os.path.isdir(TEST_DIR):
 	os.makedirs(TEST_DIR)
@@ -37,7 +37,7 @@ if not os.path.isdir(TEST_DIR):
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
 # normalize the action
-ACTION_NORM = 0.3*8.78
+ACTION_NORM = 0.3*env.TIMES
 ANGLE_NORM = 100
 
 # parameters used in testing
@@ -91,13 +91,13 @@ b_fc2 = bias_variable([256])
 W_fc3 = weight_variable([256, ACTIONS])
 b_fc3 = bias_variable([ACTIONS])
 
-W_fc_info = weight_variable([PAST_FRAME*2, 64])
+W_fc_info = weight_variable([PAST_FRAME, 64])
 b_fc_info = bias_variable([64])
 
 # input layer
 # one state to train each time
 s = tf.placeholder(dtype=tf.float32, name='s', shape=(None, RESIZE_WIDTH, RESIZE_HEIGHT, PAST_FRAME))
-past_info = tf.placeholder(dtype=tf.float32, name='past_info', shape=(None, PAST_FRAME*2))
+past_info = tf.placeholder(dtype=tf.float32, name='past_info', shape=(None, PAST_FRAME))
 training = tf.placeholder_with_default(False, name='training', shape=())
 
 # hidden layers
@@ -170,9 +170,9 @@ Return: success rate
 '''
 def testNetwork():
     # init the real test environment
-    test_env = env.FocusEnv()
+    test_env = env.FocusEnv(TEST_DIR)
     action_space = test_env.actions
-    endAngle = []
+    endfList = []
     '''
     Start tensorflow
     '''
@@ -203,8 +203,7 @@ def testNetwork():
 	    img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 	    s_t = np.stack((img_t, img_t, img_t) , axis=2)
             action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-            angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
-	    past_info_t = np.append(action_t, angle_t, axis=0)
+	    past_info_t = action_t
 	    step = 1
 	    # start 1 episode
 	    while True:
@@ -225,20 +224,20 @@ def testNetwork():
 			# save_last_pic(test, test_env.cur_state, test_env.dic[test_env.cur_state])
 		        success_cnt += int(success) # only represents the rate of active terminate
 		        total_steps += step
-            	        endAngle.append(angle_new)
-                        print("end at", angle_new)
-			save_terminal_pic(test, angle_new, img_path_t1)
+			# get the final focus
+			img_end = cv2.imread(img_path_t1)
+			focus_end = TENG(img_end)
+            	        endfList.append(focus_end)
+                        print("test ", test, "ends at ", focus_end)
 		        break
 		            
 		img_t1 = cv2.imread(img_path_t1)
 		img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 		img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-		angle_new = np.reshape(angle_new/ANGLE_NORM, (1,))
 		action_new = np.reshape(a_input/ACTION_NORM, (1,))
 		s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-		angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
 		action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-	        past_info_t1 = np.append(action_t1, angle_t1, axis=0)
+	        past_info_t1 = action_t1
 		# print test info
 		print("TEST EPISODE", test, "/ TIMESTEP", step, \
 			"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
@@ -246,15 +245,14 @@ def testNetwork():
 		# update
 		s_t = s_t1
 		action_t = action_t1
-		angle_t = angle_t1
-		past_info_t = np.append(action_t, angle_t, axis=0)
+		past_info_t = action_t
 		step += 1
 
     success_rate = success_cnt/TEST_ROUND
     step_cost = total_steps/TEST_ROUND
     print("success_rate:", success_rate, "step per episode:", step_cost)
     
-    record_and_plot(endAngle)
+    record_end_focus(endfList)
     return success_rate
 
 def TENG(img):
@@ -264,36 +262,21 @@ def TENG(img):
                           guassianY * guassianY)
 
 '''
-record_and_plot
+record_end_focus
 '''
-def record_and_plot(endAngle):
-    angle_path = os.path.join(TEST_DIR, "endAngle.txt")
-    endFocus = []
-    with open(angle_path, "w") as f:
-        for i in range(TEST_ROUND):
-            pic_name = str(i) + '.jpg'
-            pic_path = os.path.join(TEST_DIR, pic_name)
-            img = cv2.imread(pic_path)
-            img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY) 
-            endFocus.append(TENG(img))
-            f.write(str(endAngle[i]) + ' ' + str(endFocus[i]) + '\n')
-    
-    plt.figure()
-    plt.plot(endAngle, endFocus, 'bx')
-    plt.savefig(os.path.join(TEST_DIR, "result"), dpi=1200)
-    plt.show()
-
-'''
-save_terminal_pic - save the final picture and use the episode num and
-		    the final angle to name it
-'''
-def save_terminal_pic(epi_num, angle_new, img_path_t1):
-    img = cv2.imread(img_path_t1)
-    # to avoid '.' appears in file name
-    new_pic_name = str(epi_num) + '.jpg'
-    new_pic_path = os.path.join(TEST_DIR, new_pic_name)
-    print(new_pic_path)
-    cv2.imwrite(new_pic_path, img)
-
-if __name__ == '__main__':
+def record_end_focus(endfList):
+    # record the end focus to txt file
+    record_path = os.path.join(TEST_DIR, "endfList.txt")
+    with open(record_path, "w") as f:
+        for i in range(len(endfList)):    
+		f.write(str(endFocus[i]) + '\n')
+    # plot histogram
+    plt.hist(endfList, bins=10, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
+    plt.xlabel("Focus Measure Region")
+    plt.ylabel("Frequency")
+    plt.title("Endpoint Focus Measure Distribution")
+    plt.savefig(os.path.join(TEST_DIR, "endf"), dpi=1200)
+    return
+ 
+if '__name__' == '__main__':   
 	testNetwork()

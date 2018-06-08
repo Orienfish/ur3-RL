@@ -31,23 +31,21 @@ import time
 # Important global parameters
 ###################################################################################
 PATH = os.path.split(os.path.realpath(__file__))[0]
-ANGLE_LIMIT_PATH = 'testgrp5/angle.txt'
-ANGLE_LIMIT_PATH = os.path.join(PATH, ANGLE_LIMIT_PATH)
 # specify the version of the test model
-VERSION = "real"
-BASED_VERSION = "testgrp5_nodrop_m"
-LOG_DIR = "/tmp/logdir/realtrain_" + VERSION
-TRAIN_DIR = "realtrain_" + VERSION
+VERSION = "realtrain_n1_noangle"
+BASED_VERSION = "n1_noangle"
+LOG_DIR = "/tmp/logdir/trainlog/real_" + VERSION
+TRAIN_DIR = "training/" + VERSION
 TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
 # if directory does not exist, new it
 if not os.path.isdir(TRAIN_DIR):
     os.makedirs(TRAIN_DIR)
-BASED_DIR = "train_" + BASED_VERSION
+BASED_DIR = "training/" + BASED_VERSION
 BASED_DIR = os.path.join(PATH, BASED_DIR)
 # the following files are all in training directories
-READ_NETWORK_DIR = "saved_networks_part_" + BASED_VERSION
+READ_NETWORK_DIR = "saved_networks_" + BASED_VERSION
 READ_NETWORK_DIR = os.path.join(BASED_DIR, READ_NETWORK_DIR)
-SAVE_NETWORK_DIR = "saved_networks_part_" + VERSION
+SAVE_NETWORK_DIR = "saved_networks_" + VERSION
 SAVE_NETWORK_DIR = os.path.join(TRAIN_DIR, SAVE_NETWORK_DIR)
 # saved networks are in train directory of specified version
 if not os.path.isdir(SAVE_NETWORK_DIR):
@@ -62,7 +60,7 @@ FILE_STEP = os.path.join(TRAIN_DIR, FILE_STEP)
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
 # normalize the action
-ACTION_NORM = 0.3*8.78
+ACTION_NORM = 0.3*env.TIMES
 ANGLE_NORM = 100
 
 # parameters used in training
@@ -128,13 +126,13 @@ b_fc2 = bias_variable([256])
 W_fc3 = weight_variable([256, ACTIONS])
 b_fc3 = bias_variable([ACTIONS])
 
-W_fc_info = weight_variable([PAST_FRAME*2, 64])
+W_fc_info = weight_variable([PAST_FRAME, 64])
 b_fc_info = bias_variable([64])
 
 # input layer
 # one state to train each time
 s = tf.placeholder(dtype=tf.float32, name='s', shape=(None, RESIZE_WIDTH, RESIZE_HEIGHT, PAST_FRAME))
-past_info = tf.placeholder(dtype=tf.float32, name='past_info', shape=(None, PAST_FRAME*2))
+past_info = tf.placeholder(dtype=tf.float32, name='past_info', shape=(None, PAST_FRAME))
 training = tf.placeholder_with_default(False, name='training', shape=())
 
 # hidden layers
@@ -167,14 +165,18 @@ h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
 
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
+# h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
 h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
     
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
+# h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
 h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
+
 # readout layer
 readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
+
 
 '''
 Neural Network Definitions
@@ -204,7 +206,7 @@ def trainNetwork():
     # store the previous observations in replay memory
     D = deque()
     # init training environment
-    train_env = env.FocusEnv(ANGLE_LIMIT_PATH, TRAIN_DIR)
+    train_env = env.FocusEnv(TRAIN_DIR)
     action_space = train_env.actions
 
     '''
@@ -237,7 +239,7 @@ def trainNetwork():
 
         # This file is the dqn reinforcement learning.
         # start
-        while t < NUM_TRAINING_STEPS:
+        while t <= NUM_TRAINING_STEPS:
             # one episode in each training environment
             init_angle, init_img_path = train_env.reset()
             rAll = 0 # total reward clear
@@ -248,9 +250,7 @@ def trainNetwork():
             img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
             s_t = np.stack((img_t, img_t, img_t) , axis=2)
             action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-            angle_t = np.stack((init_angle/ANGLE_NORM, init_angle/ANGLE_NORM, init_angle/ANGLE_NORM), axis=0)
-	    past_info_t = np.append(action_t, angle_t, axis=0)
-
+	    past_info_t = action_t
             # start one episode
             while True:
                 # readout_t = readout.eval(feed_dict={s:[s_t], action:[action_t]})[0]
@@ -285,13 +285,11 @@ def trainNetwork():
             	img_t1 = cv2.imread(img_path_t1)
             	img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
                 img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-            	angle_new = np.reshape(angle_new/ANGLE_NORM, (1,))
                 action_new = np.reshape(a_input/ACTION_NORM, (1,))
             	# stack to the state information
 	        s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-            	angle_t1 = np.append(angle_new, angle_t[:PAST_FRAME-1], axis=0)
                 action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-	        past_info_t1 = np.append(action_t1, angle_t1, axis=0)
+	        past_info_t1 = action_t1
             	# store the transition into D
             	D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
             	if len(D) > REPLAY_MEMORY:
@@ -361,9 +359,8 @@ def trainNetwork():
                     
             	# update the old values
             	s_t = s_t1
-                angle_t = angle_t1
 		action_t = action_t1
-                past_info_t = np.append(action_t, angle_t, axis=0)
+                past_info_t = action_t
             	t += 1    # total time steps
                 rAll += r_t
                 step += 1
