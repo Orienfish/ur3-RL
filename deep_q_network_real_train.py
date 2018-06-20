@@ -27,55 +27,59 @@ from ctypes import *
 import matplotlib.pyplot as plt
 import time
 
-# only use gpu:1
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-
 ###################################################################################
 # Important global parameters
 ###################################################################################
 PATH = os.path.split(os.path.realpath(__file__))[0]
-# specify the version of the test model
-VERSION = "smallrange40_60" # raw focus measure
-BASED_VERSION = "n1_noangle_lr"
-LOG_DIR = PATH + "/trainlog/" + VERSION
-TRAIN_DIR = PATH + "/training/" + VERSION
-# if directory does not exist, new it
-if not os.path.isdir(TRAIN_DIR):
-    os.makedirs(TRAIN_DIR)
-BASED_DIR = PATH + "/training/" + BASED_VERSION
-# the following files are all in training directories
-READ_NETWORK_DIR = BASED_DIR + "/saved_networks_" + BASED_VERSION
-SAVE_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + VERSION
-# saved networks are in train directory of specified version
-if not os.path.isdir(SAVE_NETWORK_DIR):
-    os.makedirs(SAVE_NETWORK_DIR)
-# FILE_SUCCESS = "success_rate_" + VERSION + ".txt"
-# FILE_SUCCESS = os.path.join(TRAIN_DIR, FILE_SUCCESS)
-FILE_REWARD = TRAIN_DIR + "/total_reward_" + VERSION + ".txt"
-FILE_STEP = TRAIN_DIR + "/step_cnt_" + VERSION + ".txt"
+
+# tf.app.flags defined input parameters
+# Necessary: VERSION, BASED_VERSION, ENV_PATH
+tf.app.flags.DEFINE_string('IMAGE_PATH', '/home/robot/RL/data/new_grp2','train image path')
+# tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
+tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
+tf.app.flags.DEFINE_string('BASED_VERSION', 'n1_noangle_lr', 'version of the based model')
+tf.app.flags.DEFINE_string('ENV_PATH', 'realenv', 'path of environment class file')
+tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 5000, 'number of time steps in one training')
+tf.app.flags.DEFINE_integer('OBSERVE', 200, 'number of time steps to observe before training')
+tf.app.flags.DEFINE_integer('EXPLORE', 6000, 'number of time steps to explore after observation')
+tf.app.flags.DEFINE_integer('REPLAY_MEMORY', 200, 'number of previous transitions to remember')
+tf.app.flags.DEFINE_float('LEARNING_RATE', 0.001, 'learning rate for optimizer')
+# tf.app.flags.DEFINE_integer('TEST_ROUND', 50, 'how many episodes in the test')
+tf.app.flags.DEFINE_float('GAMMA', 0.99, 'decay rate of past observations')
+tf.app.flags.DEFINE_integer('BATCH', 32, 'size of minibatch')
+tf.app.flags.DEFINE_float('FINAL_EPSILON', 0.001, 'final value of epsilon')
+tf.app.flags.DEFINE_float('INITIAL_EPSILON', 0.01, 'starting value of epsilon')
+tf.app.flags.DEFINE_integer('COST_RECORD_STEP', 100, 'cost recording step')
+tf.app.flags.DEFINE_integer('NETWORK_RECORD_STEP', 20, 'network recording step')
+tf.app.flags.DEFINE_integer('REWARD_RECORD_STEP', 10, 'reward recording step')
+tf.app.flags.DEFINE_integer('STEP_RECORD_STEP', 10, 'step recording step')
+# tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
+tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.6, 'how much space taken per gpu')
+tf.app.flags.DEFINE_string('GPU_LIST', '0, 1', 'how much space taken per gpu')
+tf.app.flags.DEFINE_integer('MAX_STEPS', 10, 'max steps defined in env')
+tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
+tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
+FLAGS = tf.app.flags.FLAGS
+
+# define global variables
+env = None
+LOG_DIR = None
+TRAIN_DIR = None
+BASED_DIR = None
+READ_NETWORK_DIR = None
+SAVE_NETWORK_DIR = None
+FILE_REWARD = None
+FILE_STEP = None
+ACTION_NORM = None
+
 # used in pre-process the picture
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
-# normalize the action
-ACTION_NORM = 0.3*env.TIMES
-# ANGLE_NORM = 100
 
-# parameters used in training
+# parameters used in training but not set by flag
+# their settings relates to other files
 ACTIONS = 5 # number of valid actions
-GAMMA = 0.99 # in DQN. decay rate of past observations
 PAST_FRAME = 3 # how many frame in one state
-LEARNING_RATE = 0.001 # parameter in the optimizer
-NUM_TRAINING_STEPS = 5000 # times of episodes in one folder
-REPLAY_MEMORY = 200 # number of previous transitions to remember
-BATCH = 32 # size of minibatch
-OBSERVE = 200. # timesteps to observe before training
-EXPLORE = 6000. # frames over which to anneal epsilon
-FINAL_EPSILON = 0.001 # final value of epsilon
-INITIAL_EPSILON = 0.01 # starting value of epsilon
-COST_RECORD_STEP = 10
-NETWORK_RECORD_STEP = 20
-REWARD_RECORD_STEP = 10
-STEP_RECORD_STEP = 10
 
 ###################################################################################
 # Functions
@@ -203,8 +207,7 @@ def trainNetwork():
     # store the previous observations in replay memory
     D = deque()
     # init training environment
-    train_env = env.FocusEnv(TRAIN_DIR)
-    action_space = train_env.actions
+    train_env = env.FocusEnv([TRAIN_DIR, FLAGS.IMAGE_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
 
     '''
     Start tensorflow
@@ -212,7 +215,7 @@ def trainNetwork():
     # saving and loading networks
     saver = tf.train.Saver()
     
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.PER_GPU_USAGE)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
         # define a summary operation to gather all scalar record
@@ -223,20 +226,21 @@ def trainNetwork():
         layout_dashboard(train_writer)
 
         # load in half-trained networks
-        checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
-        if checkpoint and checkpoint.model_checkpoint_path:
-            saver.restore(sess, checkpoint.model_checkpoint_path)
-            print("Successfully loaded:", checkpoint.model_checkpoint_path)
-        else:
-            print("Could not find old network weights")
+        if BASED_VERSION:
+            checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
+            if checkpoint and checkpoint.model_checkpoint_path:
+                saver.restore(sess, checkpoint.model_checkpoint_path)
+                print("Successfully loaded:", checkpoint.model_checkpoint_path)
+            else:
+                print("Could not find old network weights")
     
-        epsilon = INITIAL_EPSILON # may change with t
+        epsilon = FLAGS.INITIAL_EPSILON # may change with t
         t = 0 # total training steps count
         i = 0 # num of episodes
 
         # This file is the dqn reinforcement learning.
         # start
-        while t <= NUM_TRAINING_STEPS:
+        while t <= FLAGS.NUM_TRAINING_STEPS:
             # one episode in each training environment
             init_angle, init_img_path = train_env.reset()
             rAll = 0 # total reward clear
@@ -265,13 +269,13 @@ def trainNetwork():
                     	action_index = random.randrange(ACTIONS) 
                 else:
             	        action_index = np.argmax(readout_t)
-            	a_input = action_space[action_index]
+            	a_input = train_env.actions[action_index]
             	a_t = np.zeros([ACTIONS])
             	a_t[action_index] = 1
             
             	# scale down epsilon
-            	if epsilon > FINAL_EPSILON and t > OBSERVE:
-            		epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
+            	if epsilon > FLAGS.FINAL_EPSILON and t > FLAGS.OBSERVE:
+            		epsilon -= (FLAGS.INITIAL_EPSILON - FLAGS.FINAL_EPSILON) / FLAGS.EXPLORE
                 
             	# run the selected action and observe next state and reward
             	angle_new, img_path_t1, r_t, terminal = train_env.step(a_input)
@@ -289,7 +293,7 @@ def trainNetwork():
 	        past_info_t1 = action_t1
             	# store the transition into D
             	D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
-            	if len(D) > REPLAY_MEMORY:
+            	if len(D) > FLAGS.REPLAY_MEMORY:
            	    	D.popleft()
 
                 '''
@@ -298,7 +302,7 @@ def trainNetwork():
             	# only train if done observing
             	if t > OBSERVE:
             		# sample a minibatch to train on
-            	    minibatch = random.sample(D, BATCH)
+            	    minibatch = random.sample(D, FLAGS.BATCH)
 
             	    # get the batch variables
             	    s_j_batch = [d[0] for d in minibatch]
@@ -320,10 +324,10 @@ def trainNetwork():
                 	if terminal_sample:
                 	   	y_batch.append(r_batch[k])
                 	else:
-                	   	y_batch.append(r_batch[k] + GAMMA * np.max(readout_j1_batch[k]))
+                	   	y_batch.append(r_batch[k] + FLAGS.GAMMA * np.max(readout_j1_batch[k]))
                                 
             	    # perform gradient step and record
-            	    if t % COST_RECORD_STEP == 0:
+            	    if t % FLAGS.COST_RECORD_STEP == 0:
                 	summary_str, _ = sess.run([merged_summary_op, train_step], feed_dict = {
                 		y : y_batch,
                 		a : a_batch,
@@ -343,9 +347,9 @@ def trainNetwork():
 
                 # print info
                 state = ""
-                if t <= OBSERVE:
+                if t <= FLAGS.OBSERVE:
                 	state = "observe"
-                elif t > OBSERVE and t <= OBSERVE + EXPLORE:
+                elif t > FLAGS.OBSERVE and t <= FLAGS.OBSERVE + FLAGS.EXPLORE:
                 	state = "explore"
                 else:
                 	state = "train" 
@@ -363,7 +367,7 @@ def trainNetwork():
                 step += 1
     
             	# save progress
-            	if t % NETWORK_RECORD_STEP == 0:
+            	if t % FLAGS.NETWORK_RECORD_STEP == 0:
             	    saver.save(sess, SAVE_NETWORK_DIR+'/dqn', global_step = t)
 
                 if terminal:    
@@ -396,11 +400,11 @@ def write_reward_and_step(i, rAll, step):
             txtData = str(step) + '\n'
             f.write(txtData)
         return
-    if i % REWARD_RECORD_STEP == 0:
+    if i % FLAGS.REWARD_RECORD_STEP == 0:
         with open(FILE_REWARD, 'a+') as f:
             txtData = str(rAll) + '\n'
             f.write(txtData)
-    if i % STEP_RECORD_STEP == 0:
+    if i % FLAGS.STEP_RECORD_STEP == 0:
         with open(FILE_STEP, 'a+') as f:
             txtData = str(step) + '\n'
             f.write(txtData)
@@ -428,18 +432,18 @@ def plot_data():
     # plot rList
     plt.subplot(211)
     plt.plot(rList, 'b')
-    plt.xlabel('episode({})'.format(REWARD_RECORD_STEP))
+    plt.xlabel('episode({})'.format(FLAGS.REWARD_RECORD_STEP))
     plt.ylabel('reward')
 
     # plot stepList
     plt.subplot(212)
     plt.plot(stepList, 'r')
-    plt.xlabel('episode({})'.format(STEP_RECORD_STEP))
+    plt.xlabel('episode({})'.format(FLAGS.STEP_RECORD_STEP))
     plt.ylabel('steps')
 
 
     # save this figure
-    plt.savefig(TRAIN_DIR + '/result_' + str(VERSION), dpi=1200)
+    plt.savefig(TRAIN_DIR + '/result_' + str(FLAGS.VERSION), dpi=600)
     return
 
 '''
@@ -497,5 +501,35 @@ def layout_dashboard(writer):
 ###################################################################################
 # Main
 ###################################################################################
+def main(_):
+    global LOG_DIR, TRAIN_DIR, BASED_DIR, READ_NETWORK_DIR, SAVE_NETWORK_DIR
+    global FILE_REWARD, FILE_STEP, ACTION_NORM, env, TEST_RESULT_PATH
+    # import env
+    env = __import__(FLAGS.ENV_PATH)
+    # normalize the action
+    ACTION_NORM = 0.3*env.TIMES
+
+    # define important directories
+    LOG_DIR = PATH + "/trainlog/" + FLAGS.VERSION
+    TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
+    # if directory does not exist, new it
+    if not os.path.isdir(TRAIN_DIR):
+        os.makedirs(TRAIN_DIR)
+    BASED_DIR = PATH + "/training/" + FLAGS.BASED_VERSION
+    # the following files are all in training directories
+    READ_NETWORK_DIR = BASED_DIR + "/saved_networks_" + FLAGS.BASED_VERSION
+    SAVE_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
+    # saved networks are in train directory of specified version
+    if not os.path.isdir(SAVE_NETWORK_DIR):
+        os.makedirs(SAVE_NETWORK_DIR)
+    FILE_REWARD = TRAIN_DIR + "/total_reward_" + FLAGS.VERSION + ".txt"
+    FILE_STEP = TRAIN_DIR + "/step_cnt_" + FLAGS.VERSION + ".txt"
+
+    # set GPU
+    os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.GPU_LIST
+
+    # start real training!
+    trainNetwork()
+
 if __name__ == "__main__":
-	trainNetwork()
+	tf.app.run()

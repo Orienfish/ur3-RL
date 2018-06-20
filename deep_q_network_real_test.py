@@ -12,7 +12,6 @@ import os
 import sys
 import random
 import numpy as np
-import realenv_test as env
 import matplotlib.pyplot as plt
 # import collect_code.pycontrol as ur
 
@@ -27,7 +26,7 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
 tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
 # tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
-# tf.app.flags.DEFINE_string('ENV_PATH', 'trainenv_virf_v5', 'path of environment class file')
+tf.app.flags.DEFINE_string('ENV_PATH', 'realenv_test', 'path of environment class file')
 # tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 50000, 'number of time steps in one training')
 # tf.app.flags.DEFINE_integer('OBSERVE', 1000, 'number of time steps to observe before training')
 # tf.app.flags.DEFINE_integer('EXPLORE', 30000, 'number of time steps to explore after observation')
@@ -44,6 +43,7 @@ tf.app.flags.DEFINE_integer('TEST_ROUND', 10, 'how many episodes in the test')
 # tf.app.flags.DEFINE_integer('STEP_RECORD_STEP', 100, 'step recording step')
 # tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
 tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.333, 'how much space taken per gpu')
+tf.app.flags.DEFINE_string('GPU_LIST', '0, 1', 'how much space taken per gpu')
 tf.app.flags.DEFINE_integer('MAX_STEPS', 10, 'max steps defined in env')
 tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
 tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
@@ -196,7 +196,7 @@ Return: success rate
 '''
 def testNetwork():
     # init the real test environment
-    test_env = env.FocusEnv([TEST_RESULT_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAG.MAX_ANGLE])
+    test_env = env.FocusEnv([TEST_RESULT_PATH, None, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAG.MAX_ANGLE])
     '''
     Start tensorflow
     '''
@@ -209,12 +209,13 @@ def testNetwork():
         sess.run(tf.global_variables_initializer())
 
         # load in half-trained networks
-        checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
-        if checkpoint and checkpoint.model_checkpoint_path:
-                saver.restore(sess, checkpoint.model_checkpoint_path)
-                print("Successfully loaded:", checkpoint.model_checkpoint_path)
-        else:
-                print("Could not find old network weights")
+        if FLAGS.BASED_VERSION:
+            checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
+            if checkpoint and checkpoint.model_checkpoint_path:
+                    saver.restore(sess, checkpoint.model_checkpoint_path)
+                    print("Successfully loaded:", checkpoint.model_checkpoint_path)
+            else:
+                    print("Could not find old network weights")
     	
 	success_cnt = 0.0
 	total_steps = 0.0
@@ -242,7 +243,7 @@ def testNetwork():
 		action_index = np.argmax(readout_t)
 		a_input = test_env.actions[action_index]
 		# run the selected action and observe next state and reward
-		angle_new, img_path_t1, terminal, success = test_env.step(a_input)
+		angle_new, img_path_t1, terminal, success = test_env.test_step(a_input)
 
 		if terminal:
 			# calculate
@@ -342,7 +343,7 @@ def plot_focus_in_one_episode(epipath, p, fList):
     plt.xlabel("ops")
     plt.ylabel("Focus Measure")
     plt.title("Focus Changing in episode {}".format(p))
-    plt.savefig(epipath + "/f_change", dpi=1200)	
+    plt.savefig(epipath + "/f_change", dpi=600)	
     plt.show() 
 
 '''
@@ -385,6 +386,9 @@ def main(_):
     TEST_RESULT_PATH = PATH + "/testing/" + FLAGS.VERSION
     if not os.path.isdir(TEST_RESULT_PATH):
         os.makedirs(TEST_RESULT_PATH)
+
+    # set GPU
+    os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.GPU_LIST
     
     # start real test!
     success, step = testNetwork()

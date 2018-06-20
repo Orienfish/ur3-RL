@@ -26,14 +26,13 @@ from importlib import import_module # for dynamic import env
 from ctypes import *
 import matplotlib.pyplot as plt
 import time
-# only use gpu:0
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 ###################################################################################
 # Important global parameters
 ###################################################################################
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
+
 # tf.app.flags defined input parameters
 # Necessary: VERSION, ENV_PATH
 tf.app.flags.DEFINE_string('IMAGE_PATH', '/home/robot/RL/data/new_grp2','train image path')
@@ -41,9 +40,9 @@ tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test ima
 tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
 tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
 tf.app.flags.DEFINE_string('ENV_PATH', 'trainenv_virf_v5', 'path of environment class file')
-tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 50000, 'number of time steps in one training')
+tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 100000, 'number of time steps in one training')
 tf.app.flags.DEFINE_integer('OBSERVE', 1000, 'number of time steps to observe before training')
-tf.app.flags.DEFINE_integer('EXPLORE', 30000, 'number of time steps to explore after observation')
+tf.app.flags.DEFINE_integer('EXPLORE', 50000, 'number of time steps to explore after observation')
 tf.app.flags.DEFINE_integer('REPLAY_MEMORY', 500, 'number of previous transitions to remember')
 tf.app.flags.DEFINE_float('LEARNING_RATE', 0.001, 'learning rate for optimizer')
 tf.app.flags.DEFINE_integer('TEST_ROUND', 50, 'how many episodes in the test')
@@ -57,6 +56,7 @@ tf.app.flags.DEFINE_integer('REWARD_RECORD_STEP', 100, 'reward recording step')
 tf.app.flags.DEFINE_integer('STEP_RECORD_STEP', 100, 'step recording step')
 tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
 tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.6, 'how much space taken per gpu')
+tf.app.flags.DEFINE_string('GPU_LIST', '0, 1', 'how much space taken per gpu')
 tf.app.flags.DEFINE_integer('MAX_STEPS', 10, 'max steps defined in env')
 tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
 tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
@@ -562,7 +562,7 @@ def plot_data():
     plt.ylabel('train accuracy')
 
     # save this figure
-    plt.savefig(TRAIN_DIR + '/result_' + str(FLAGS.VERSION), dpi=1200)
+    plt.savefig(TRAIN_DIR + '/result_' + str(FLAGS.VERSION), dpi=600)
     return
 
 '''
@@ -625,13 +625,16 @@ def main(_): # must have input parameter
 	global FILE_SUCCESS, FILE_REWARD, FILE_STEP, ACTION_NORM, env
 	# import env
 	env = __import__(FLAGS.ENV_PATH)
+    	# normalize the action
+    	ACTION_NORM = 0.3*env.TIMES
+
 	# define variables
 	LOG_DIR = PATH + "/trainlog/" + FLAGS.VERSION
 	TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
 	BASED_DIR = PATH + "/training/" + FLAGS.BASED_VERSION
 	# if directory does not exist, new it
 	if not os.path.isdir(TRAIN_DIR):
-	    os.makedirs(TRAIN_DIR)
+	        os.makedirs(TRAIN_DIR)
 	# the following files are all in training directories
 	READ_NETWORK_DIR = BASED_DIR + "/saved_networks_" + FLAGS.BASED_VERSION
 	SAVE_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
@@ -641,8 +644,9 @@ def main(_): # must have input parameter
 	FILE_SUCCESS = TRAIN_DIR + "/success_rate_" + FLAGS.VERSION + ".txt"
 	FILE_REWARD = TRAIN_DIR + "/total_reward_" + FLAGS.VERSION + ".txt"
 	FILE_STEP = TRAIN_DIR + "/step_cnt_" + FLAGS.VERSION + ".txt"
-	# normalize the action
-	ACTION_NORM = 0.3*env.TIMES
+
+    	# set GPU
+    	os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.GPU_LIST
 	
 	# start training!
 	trainNetwork()

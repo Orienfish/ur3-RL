@@ -49,8 +49,7 @@ class FocusEnv(): # one class for one folder
 	self.actions = [COARSE_NEG, FINE_NEG, TERMINAL, FINE_POS, COARSE_POS]
 	self.train_data_dir = info[0]
 	self.max_steps, self.min_angle, self.max_angle = info[1], info[2], info[3]
-	
-	self.angle_path = os.path.join(self.train_data_dir, "angle.txt")
+
 	self.get_max_focus() # set focus points
 	# self.angle_list_path = os.path.join(self.train_data_dir, "angleList.txt")
 	# self.import_angle()
