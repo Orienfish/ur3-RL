@@ -82,8 +82,8 @@ class FocusEnv(): # one class for one folder
         ur.camera_take_pic(pic_name)
 
         return self.cur_state, init_path
-
-'''
+    
+    '''
     step - regulations of transfering between states
 
     Input: input_action
