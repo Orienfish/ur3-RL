@@ -425,7 +425,7 @@ Return: success rate
 '''
 def testNetwork():
     # initialize testing environment
-    test_env = env.FocusEnv(FLATS.TEST_PATH)
+    test_env = env.FocusEnv(FLAGS.TEST_PATH)
     success_cnt = 0.0
 
     '''
