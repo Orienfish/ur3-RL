@@ -83,6 +83,7 @@ class FocusEnv(): # one class for one folder
 
         return self.cur_state, init_path
     
+
     '''
     step - regulations of transfering between states
 
@@ -145,6 +146,8 @@ class FocusEnv(): # one class for one folder
     '''
     # return self.cur_state, next_image_path, action_reward + self.get_reward(focus), False
     return self.cur_state, next_image_path, self.get_reward(focus), False
+
+
     '''
     step - regulations of transfering between states
 
@@ -191,6 +194,7 @@ class FocusEnv(): # one class for one folder
 	    	return self.cur_state, next_image_path, True, False
 
 	return self.cur_state, next_image_path, False, False
+
 	
     '''
     get_max_focus - get the max focus for reference
@@ -215,6 +219,7 @@ class FocusEnv(): # one class for one folder
         self.max_focus = max_focus
         return max_focus
 
+
     '''
     get_reward - reward determination
     generate reward from the current taking pictures, should be less than 0
@@ -224,6 +229,8 @@ class FocusEnv(): # one class for one folder
     	print("max", self.success_focus, "cur", cur_focus, "reward is", reward)
     	# self.last_focus = cur_focus # update
     	return reward # return
+
+
     '''
     move - move the ur3 from start_angle to end_angle
     '''
@@ -240,6 +247,7 @@ class FocusEnv(): # one class for one folder
 		print("FINE move", delta_angle)
 		ur.change_focus_mode(ur.FINE)
 		ur.move_from_to(delta_angle)
+
 
 def TENG(img):
     guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
