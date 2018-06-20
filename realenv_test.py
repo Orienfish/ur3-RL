@@ -16,11 +16,11 @@ import collect_code.pycontrol as ur
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
 # IMAGE_PATH = '/home/robot/RL/grp1'
-MAX_STEPS = 20
+# MAX_STEPS = 20
 # maximum and minimum limitations, a little different from collectenv.py
 # only part of the data is used: from 150.jpg to 180.jpg
-MAX_ANGLE = 69.0
-MIN_ANGLE = 30.0
+# MAX_ANGLE = 69.0
+# MIN_ANGLE = 30.0
 # VERY IMPORTANT!!!
 TIMES = 9
 # actions
@@ -32,12 +32,14 @@ COARSE_NEG = -0.3*TIMES
 
 
 class FocusEnv(): # one class for one folder
-    def __init__(self, SAVE_PIC_PATH):
+    def __init__(self, info):  # info:[TRAIN_DATA_DIR, MAX_STEPS, MIN_ANGLE, MAX_ANGLE]
         # COARSE NEG, FINE NEG, TERMINAL, FINE POS, COARSE POS
         self.actions = [COARSE_NEG, FINE_NEG, TERMINAL, FINE_POS, COARSE_POS]
+        self.save_pic_path = info[0]
+        self.max_steps, self.min_angle, self.max_angle = info[1], info[2], info[3]
         self.cur_state = 0.0 # initial with 0
         self.episode = 0
-        self.save_pic_path = SAVE_PIC_PATH
+        
         # the terminal angle should be acknouwledged during the training process
         ur.system_init()
 
@@ -49,8 +51,8 @@ class FocusEnv(): # one class for one folder
         last_state = self.cur_state
         last_state = round(last_state, 2) # just in case
         # randomly decide the new initial state, the angle here is not accurate, just for random actions
-        state = random.random() * (MAX_ANGLE - MIN_ANGLE)
-        self.cur_state = MIN_ANGLE + state
+        state = random.random() * (self.max_angle - self.min_angle)
+        self.cur_state = self.min_angle + state
         self.cur_state = round(self.cur_state, 2)
         self.cur_step = 0
         self.episode = self.episode + 1
@@ -103,7 +105,7 @@ class FocusEnv(): # one class for one folder
         next_image_path = pic_name
 
     	# special termination
-    	if self.cur_state > MAX_ANGLE or self.cur_state < MIN_ANGLE:
+    	if self.cur_state > self.max_angle or self.cur_state < self.min_angle:
     	    	return self.cur_state, next_image_path, True, False
 	# choose to terminate
 	if input_action == TERMINAL:
@@ -111,7 +113,7 @@ class FocusEnv(): # one class for one folder
 	    	return self.cur_state, next_image_path, True, True
 
 	# special case - failure
-	if self.cur_step >= MAX_STEPS:
+	if self.cur_step >= self.max_steps:
 	    	return self.cur_state, next_image_path, True, False
 
 	return self.cur_state, next_image_path, False, False

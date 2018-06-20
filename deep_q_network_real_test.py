@@ -60,26 +60,16 @@ READ_NETWORK_DIR = None
 # FILE_REWARD = None
 # FILE_STEP = None
 ACTION_NORM = None
+TEST_RESULT_PATH = None
 
-# specify the version of test model
-VERSION = "n1_noangle_lr"
-TRAIN_DIR = PATH + "/training/" + VERSION
-# the following files are all in training directories
-READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + VERSION
-# test result folder
-TEST_DIR = PATH + "/testing/" + VERSION + '2'
-if not os.path.isdir(TEST_DIR):
-	os.makedirs(TEST_DIR)
+
 # used in pre-process the picture
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
-# normalize the action
-ACTION_NORM = 0.3*env.TIMES
 
 # parameters used in testing
 ACTIONS = 5 # number of valid actions
 PAST_FRAME = 3
-TEST_ROUND = 10
 
 ###################################################################################
 # Functions
@@ -206,8 +196,7 @@ Return: success rate
 '''
 def testNetwork():
     # init the real test environment
-    test_env = env.FocusEnv(TEST_DIR)
-    action_space = test_env.actions
+    test_env = env.FocusEnv([TEST_RESULT_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAG.MAX_ANGLE])
     '''
     Start tensorflow
     '''
@@ -215,7 +204,7 @@ def testNetwork():
     # saving and loading networks
     saver = tf.train.Saver()
 
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.PER_GPU_USAGE)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
 
@@ -230,7 +219,7 @@ def testNetwork():
 	success_cnt = 0.0
 	total_steps = 0.0
         # start test
-	for test in range(TEST_ROUND):
+	for test in range(FLAGS.TEST_ROUND):
 	    init_angle, init_img_path = test_env.reset()
 	                
 	    # generate the first state, a_past is 0
@@ -251,7 +240,7 @@ def testNetwork():
 		print(readout_t)
 		# determine the next action
 		action_index = np.argmax(readout_t)
-		a_input = action_space[action_index]
+		a_input = test_env.actions[action_index]
 		# run the selected action and observe next state and reward
 		angle_new, img_path_t1, terminal, success = test_env.step(a_input)
 
@@ -282,11 +271,12 @@ def testNetwork():
 		past_info_t = action_t
 		step += 1
 
-    success_rate = success_cnt/TEST_ROUND
-    step_cost = total_steps/TEST_ROUND
+    # calculate final return results
+    success_rate = success_cnt / FLAGS.TEST_ROUND
+    step_cost = total_steps / FLAGS.TEST_ROUND
     print("success_rate:", success_rate, "step per episode:", step_cost)
-    
-    return success_rate
+
+    return success_rate, step_cost
 
 def TENG(img):
         guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
@@ -297,7 +287,13 @@ def TENG(img):
 '''
 record_end_focus
 '''
-def record_end_focus():
+def record_end_focus(success_rate, step_cost):
+    # write success rate and average steps to txt file
+    txtFile = os.path.join(TEST_RESULT_PATH, 'result.txt') 
+    with open(txtFile, 'w') as f:
+        Data = "success rate:" + str(success_rate) + " step per episode:" + str(step_cost)
+        f.write(Data)
+
     # data to record: endf and step
     endfList = []
     stepList = []
@@ -305,7 +301,7 @@ def record_end_focus():
     imageList = []
 
     # get all the directories under TEST_DIR
-    for root, dirs, files in os.walk(TEST_DIR):
+    for root, dirs, files in os.walk(TEST_RESULT_PATH):
         for dir in dirs:
             epiDirs.append(dir)
     epiDirs.sort(key=lambda obj:int(obj)) # only process dirs, sort episode dirs
@@ -314,7 +310,7 @@ def record_end_focus():
     for p in range(len(epiDirs)):
         imageList = [] # clear list
         # get into one episode directory
-	for root, dirs, files in os.walk(os.path.join(TEST_DIR, epiDirs[p])):
+	for root, dirs, files in os.walk(os.path.join(TEST_RESULT_PATH, epiDirs[p])):
         	for file in files:
             		if os.path.splitext(file)[1] == '.jpg':
                 		imageList.append(file)
@@ -325,14 +321,14 @@ def record_end_focus():
 
 	# walk through the images	
 	for i in range(len(imageList)):
-		img_path = TEST_DIR + '/' + epiDirs[p] + '/' + imageList[i]
+		img_path = TEST_RESULT_PATH + '/' + epiDirs[p] + '/' + imageList[i]
 		print("processing %s" %img_path)
 		img = cv2.imread(img_path)
 		img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 		focus = TENG(img)
 		fList.append(focus)
 	# plot focus changing in one episode
-	plot_focus_in_one_episode(os.path.join(TEST_DIR, epiDirs[p]), p, fList)
+	plot_focus_in_one_episode(os.path.join(TEST_RESULT_PATH, epiDirs[p]), p, fList)
 	endfList.append(fList[-1]) # add the final focus to endfList
 	stepList.append(len(imageList))
     plot_histogram(endfList, stepList)
@@ -371,6 +367,28 @@ def plot_histogram(endfList, stepList):
     plt.savefig(os.path.join(TEST_DIR, "endstep"), dpi=600)
     plt.show()
 
+'''
+main
+'''
+def main(_):
+    global TRAIN_DIR, READ_NETWORK_DIR, ACTION_NORM, env, TEST_RESULT_PATH
+    # import env
+    env = __import__(FLAGS.ENV_PATH)
+    # normalize the action
+    ACTION_NORM = 0.3*env.TIMES
+
+    # specify the important directories
+    TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
+    # the following files are all in training directories
+    READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
+    # test result folder
+    TEST_RESULT_PATH = PATH + "/testing/" + FLAGS.VERSION
+    if not os.path.isdir(TEST_RESULT_PATH):
+        os.makedirs(TEST_RESULT_PATH)
+    
+    # start real test!
+    success, step = testNetwork()
+    record_end_focus(success, step)
+
 if __name__ == '__main__':   
-	# testNetwork()
-	record_end_focus()
+	tf.app.run()
