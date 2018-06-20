@@ -21,7 +21,6 @@ MAX_STEPS = 20
 # only part of the data is used: from 150.jpg to 180.jpg
 MAX_ANGLE = 69.0
 MIN_ANGLE = 30.0
-CHANGE_POINT_RANGE = 1.5
 # VERY IMPORTANT!!!
 TIMES = 9
 # actions
@@ -32,17 +31,18 @@ FINE_NEG = -0.3
 COARSE_NEG = -0.3*TIMES
 
 
-cladef __init__(self, SAVE_PIC_PATH):
-    # COARSE NEG, FINE NEG, TERMINAL, FINE POS, COARSE POS
-    self.actions = [COARSE_NEG, FINE_NEG, TERMINAL, FINE_POS, COARSE_POS]
-    self.cur_state = 0.0 # initial with 0
-    self.episode = 0
-    self.save_pic_path = SAVE_PIC_PATH
-    # the terminal angle should be acknouwledged during the training process
-    ur.system_init()
+class FocusEnv(): # one class for one folder
+    def __init__(self, SAVE_PIC_PATH):
+        # COARSE NEG, FINE NEG, TERMINAL, FINE POS, COARSE POS
+        self.actions = [COARSE_NEG, FINE_NEG, TERMINAL, FINE_POS, COARSE_POS]
+        self.cur_state = 0.0 # initial with 0
+        self.episode = 0
+        self.save_pic_path = SAVE_PIC_PATH
+        # the terminal angle should be acknouwledged during the training process
+        ur.system_init()
 
     def __del__(self):
-    ur.system_close()
+        ur.system_close()
 
     def reset(self):
         # record the final state of last episode

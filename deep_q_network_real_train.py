@@ -27,56 +27,53 @@ from ctypes import *
 import matplotlib.pyplot as plt
 import time
 
+# only use gpu:1
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+
 ###################################################################################
 # Important global parameters
 ###################################################################################
 PATH = os.path.split(os.path.realpath(__file__))[0]
 # specify the version of the test model
-VERSION = "realtrain_n1_noangle"
-BASED_VERSION = "n1_noangle"
-LOG_DIR = "/tmp/logdir/trainlog/real_" + VERSION
-TRAIN_DIR = "training/" + VERSION
-TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
+VERSION = "smallrange40_60" # raw focus measure
+BASED_VERSION = "n1_noangle_lr"
+LOG_DIR = PATH + "/trainlog/" + VERSION
+TRAIN_DIR = PATH + "/training/" + VERSION
 # if directory does not exist, new it
 if not os.path.isdir(TRAIN_DIR):
     os.makedirs(TRAIN_DIR)
-BASED_DIR = "training/" + BASED_VERSION
-BASED_DIR = os.path.join(PATH, BASED_DIR)
+BASED_DIR = PATH + "/training/" + BASED_VERSION
 # the following files are all in training directories
-READ_NETWORK_DIR = "saved_networks_" + BASED_VERSION
-READ_NETWORK_DIR = os.path.join(BASED_DIR, READ_NETWORK_DIR)
-SAVE_NETWORK_DIR = "saved_networks_" + VERSION
-SAVE_NETWORK_DIR = os.path.join(TRAIN_DIR, SAVE_NETWORK_DIR)
+READ_NETWORK_DIR = BASED_DIR + "/saved_networks_" + BASED_VERSION
+SAVE_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + VERSION
 # saved networks are in train directory of specified version
 if not os.path.isdir(SAVE_NETWORK_DIR):
     os.makedirs(SAVE_NETWORK_DIR)
 # FILE_SUCCESS = "success_rate_" + VERSION + ".txt"
 # FILE_SUCCESS = os.path.join(TRAIN_DIR, FILE_SUCCESS)
-FILE_REWARD = "total_reward_" + VERSION + ".txt"
-FILE_REWARD = os.path.join(TRAIN_DIR, FILE_REWARD)
-FILE_STEP = "step_cnt_" + VERSION + ".txt"
-FILE_STEP = os.path.join(TRAIN_DIR, FILE_STEP)
+FILE_REWARD = TRAIN_DIR + "/total_reward_" + VERSION + ".txt"
+FILE_STEP = TRAIN_DIR + "/step_cnt_" + VERSION + ".txt"
 # used in pre-process the picture
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
 # normalize the action
 ACTION_NORM = 0.3*env.TIMES
-ANGLE_NORM = 100
+# ANGLE_NORM = 100
 
 # parameters used in training
 ACTIONS = 5 # number of valid actions
 GAMMA = 0.99 # in DQN. decay rate of past observations
 PAST_FRAME = 3 # how many frame in one state
-LEARNING_RATE = 0.0001 # parameter in the optimizer
-NUM_TRAINING_STEPS = 1000 # times of episodes in one folder
-REPLAY_MEMORY = 100 # number of previous transitions to remember
+LEARNING_RATE = 0.001 # parameter in the optimizer
+NUM_TRAINING_STEPS = 5000 # times of episodes in one folder
+REPLAY_MEMORY = 200 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
-OBSERVE = 100. # timesteps to observe before training
-EXPLORE = 600. # frames over which to anneal epsilon
+OBSERVE = 200. # timesteps to observe before training
+EXPLORE = 6000. # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.01 # starting value of epsilon
 COST_RECORD_STEP = 10
-NETWORK_RECORD_STEP = 100
+NETWORK_RECORD_STEP = 20
 REWARD_RECORD_STEP = 10
 STEP_RECORD_STEP = 10
 

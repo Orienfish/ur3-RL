@@ -21,12 +21,12 @@ import random
 import numpy as np
 from collections import deque
 # import pycontrol as ur
-import trainenv_fnoaction_v3 as env
+import trainenv_f_action_v4 as env
 from ctypes import *
 import matplotlib.pyplot as plt
 import time
-# only use gpu:0
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# only use gpu:1
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 ###################################################################################
 # Important global parameters
@@ -35,7 +35,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 PATH = os.path.split(os.path.realpath(__file__))[0]
 IMAGE_PATH = ['/home/robot/RL/data/new_grp1']
 TEST_PATH = ['/home/robot/RL/data/new_grp1']
-VERSION = "virf_changepoint_10"
+VERSION = "virf_change_action_10"
 BASED_VERSION = ""
 LOG_DIR = PATH + "/trainlog/" + VERSION
 TRAIN_DIR = PATH + "/training/" + VERSION

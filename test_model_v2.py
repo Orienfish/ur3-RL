@@ -1,5 +1,5 @@
 ####################################################################################
-# This file is for testing the dqn learning model in the real environment
+# This file is for testing the dqn learning model in the virtual environment
 # Modified by xfyu on May 24
 ####################################################################################
 # -*- coding: utf-8 -*-
@@ -12,24 +12,21 @@ import os
 import sys
 import random
 import numpy as np
-import realenv_test as env
+# import pycontrol as ur
+import trainenv_fnoaction_v3 as env
 import matplotlib.pyplot as plt
-# import collect_code.pycontrol as ur
 
 ###################################################################################
 # Important global parameters
 ###################################################################################
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
+TEST_PATH = ['/home/robot/RL/data/new_grp1']
 # specify the version of test model
-VERSION = "n1_noangle_lr"
+VERSION = "virf_changepoint_10"
 TRAIN_DIR = PATH + "/training/" + VERSION
 # the following files are all in training directories
 READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + VERSION
-# test result folder
-TEST_DIR = PATH + "/testing/" + VERSION + '2'
-if not os.path.isdir(TEST_DIR):
-	os.makedirs(TEST_DIR)
 # used in pre-process the picture
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
@@ -39,7 +36,7 @@ ACTION_NORM = 0.3*env.TIMES
 # parameters used in testing
 ACTIONS = 5 # number of valid actions
 PAST_FRAME = 3
-TEST_ROUND = 10
+TEST_ROUND = 1000
 
 ###################################################################################
 # Functions
@@ -126,12 +123,15 @@ h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
 h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
 
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
+# h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
 h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
 h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
     
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
+# h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
 h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
 h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
+
 # readout layer
 readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
 
@@ -165,16 +165,17 @@ Input: s, action,readout
 Return: success rate
 '''
 def testNetwork():
-    # init the real test environment
-    test_env = env.FocusEnv(TEST_DIR)
-    action_space = test_env.actions
+    # init the virtual test environment
+    test_env = []
+    for p in TEST_PATH:
+    	test_env.append(env.FocusEnv(p))
+    action_space = test_env[0].actions
     '''
     Start tensorflow
     '''
-
     # saving and loading networks
     saver = tf.train.Saver()
-
+    
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -187,146 +188,78 @@ def testNetwork():
         else:
                 print("Could not find old network weights")
     	
-	success_cnt = 0.0
-	total_steps = 0.0
+        test_grp = []
+    	success_rate = []
+    	step_cost = []
         # start test
-	for test in range(TEST_ROUND):
-	    init_angle, init_img_path = test_env.reset()
-	                
-	    # generate the first state, a_past is 0
-	    img_t = cv2.imread(init_img_path)
-	    img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-	    s_t = np.stack((img_t, img_t, img_t) , axis=2)
-            action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-	    past_info_t = action_t
-	    step = 1
-	    # start 1 episode
-	    while True:
-	        # run the network forwardly
-	        readout_t = readout.eval(feed_dict={
-			s : [s_t], 
-			past_info : [past_info_t],
-			training : False})[0]
-        	print(past_info_t)
-		print(readout_t)
-		# determine the next action
-		action_index = np.argmax(readout_t)
-		a_input = action_space[action_index]
-		# run the selected action and observe next state and reward
-		angle_new, img_path_t1, terminal, success = test_env.step(a_input)
+        for l in range(len(test_env)):
+        	test_grp.append(test_env[l].train_data_dir)
+        	success_cnt = 0.0
+        	total_steps = 0.0
+		for test in range(TEST_ROUND):
+		    init_angle, init_img_path = test_env[l].reset()
+		                
+		    # generate the first state, a_past is 0
+		    img_t = cv2.imread(init_img_path)
+		    img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+		    s_t = np.stack((img_t, img_t, img_t) , axis=2)
+                    action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+		    past_info_t = action_t
+		    step = 1
+		    # start 1 episode
+		    while True:
+		        # run the network forwardly
+		        readout_t = readout.eval(feed_dict={
+				s : [s_t], 
+				past_info : [past_info_t],
+				training : False})[0]
+	                print(past_info_t)
+			print(readout_t)
+			# determine the next action
+			action_index = np.argmax(readout_t)
+			a_input = action_space[action_index]
+			# run the selected action and observe next state and reward
+			angle_new, img_path_t1, terminal, success = test_env[l].test_step(a_input)
 
-		if terminal:
-			# calculate
-		        success_cnt += int(success) # only represents the rate of active terminate
-		        total_steps += step
-			# get the final focus
-			img_end = cv2.imread(img_path_t1)
-			focus_end = TENG(img_end)
-                        print("test ", test, "ends at ", focus_end)
-		        break
-		            
-		img_t1 = cv2.imread(img_path_t1)
-		img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-		img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-		action_new = np.reshape(a_input/ACTION_NORM, (1,))
-		s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-		action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-	        past_info_t1 = action_t1
-		# print test info
-		print("TEST EPISODE", test, "/ TIMESTEP", step, \
-			"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
+			if terminal:
+				# save_last_pic(test, test_env.cur_state, test_env.dic[test_env.cur_state])
+			        success_cnt += int(success) # only represents the rate of active terminate
+			        total_steps += step
+			        break
+			            
+			img_t1 = cv2.imread(img_path_t1)
+			img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+			img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
+			action_new = np.reshape(a_input/ACTION_NORM, (1,))
+			s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
+			action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
+		        past_info_t1 = action_t1
+			# print test info
+			print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env[l].train_data_dir, \
+				"/ CURRENT ANGLE", test_env[l].cur_state, "/ ACTION", a_input)
 
-		# update
-		s_t = s_t1
-		action_t = action_t1
-		past_info_t = action_t
-		step += 1
+			# update
+			s_t = s_t1
+			action_t = action_t1
+            		past_info_t = action_t
+			step += 1
 
-    success_rate = success_cnt/TEST_ROUND
-    step_cost = total_steps/TEST_ROUND
-    print("success_rate:", success_rate, "step per episode:", step_cost)
-    
+    		success_rate.append(success_cnt/TEST_ROUND)
+    		step_cost.append(total_steps/TEST_ROUND)
+    for l in range(len(test_grp)):
+    	print("test grp:", test_grp[l], "success_rate:", success_rate[l], "step per episode:", step_cost[l])
     return success_rate
 
-def TENG(img):
-        guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
-        guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
-        return np.mean(guassianX * guassianX + 
-                          guassianY * guassianY)
-
 '''
-record_end_focus
+save_terminal_pic - save the final picture and use the episode num and
+		    the final angle to name it
 '''
-def record_end_focus():
-    # data to record: endf and step
-    endfList = []
-    stepList = []
+def save_terminal_pic(epi_num, angle_new, img_path_t1):
+    img = cv2.imread(img_path_t1)
+    # to avoid '.' appears in file name
+    new_pic_name = str(epi_num) + '_' + str(angle_new).replace(".", "_", 1)
+    new_pic_path = os.path.join(TEST_DIR, new_pic_name)
+    cv2.imwrite(new_pic_path, img)
 
-    # get all the directories under TEST_DIR
-    epiList = os.listdir(TEST_DIR)
-    # remove existing endf.png
-    if 'endf.png' in epiList:
-	epiList.remove('endf.png')
-    epiList.sort(key=lambda obj:int(obj)) # sort episode list
-
-    # walk through the folder
-    for p in range(len(epiList)):
-        # get into one episode directory
-	epipath = os.path.join(TEST_DIR, epiList[p])
-	imageList = os.listdir(epipath)
-	# print(imageList)
-	# remove existing f_change.png
-	if 'f_change.png' in imageList:
-		imageList.remove('f_change.png')
-	imageList.sort(key=lambda obj:int(obj.split('_')[0])) # sort image list
-	fList = [] # clear the list
-	step = 0 # count the step from 0
-
-	# walk through the images	
-	for i in range(len(imageList)):
-		img_path = os.path.join(epipath, imageList[i])
-		print("processing %s" %img_path)
-		img = cv2.imread(img_path)
-		img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-		focus = TENG(img)
-		fList.append(focus)
-		step += 1
-	# plot focus changing in one episode
-	plot_focus_in_one_episode(epipath, p, fList)
-	endfList.append(fList[-1]) # add the final focus to endfList
-	stepList.append(step)
-    plot_histogram(endfList, stepList)
-    return
-
-'''
-plot focus in one episode
-'''
-def plot_focus_in_one_episode(epipath, p, fList):
-    plt.plot(fList, 'bx-')
-    plt.xlabel("ops")
-    plt.ylabel("Focus Measure")
-    plt.title("Focus Changing in episode {}".format(p))
-    plt.savefig(epipath + "/f_change", dpi=1200)	
-    plt.show() 
-
-'''
-plot histogram of end focus measure and steps
-'''
-def plot_histogram(endfList, stepList):
-    # plot focus histogram
-    plt.hist(endfList, bins=10, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
-    plt.xlabel("Focus Measure Region")
-    plt.ylabel("Frequency")
-    plt.title("Endpoint Focus Measure Distribution")
-    plt.savefig(os.path.join(TEST_DIR, "endf"), dpi=1200)
-
-    # plot steps histogram
-    plt.hist(stepList, bins=env.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
-    plt.xlabel("Steps Region")
-    plt.ylabel("Frequency")
-    plt.title("Endpoint Steps Distribution")
-    plt.savefig(os.path.join(TEST_DIR, "endstep"), dpi=1200)
-
-if __name__ == '__main__':   
-	# testNetwork()
-	record_end_focus()
+if __name__ == '__main__':
+	testNetwork()

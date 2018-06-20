@@ -13,7 +13,7 @@ import sys
 import random
 import numpy as np
 # import pycontrol as ur
-import trainenv_a_v1 as env
+import trainenv_f_action_v4 as env
 import matplotlib.pyplot as plt
 
 ###################################################################################
@@ -23,12 +23,10 @@ import matplotlib.pyplot as plt
 PATH = os.path.split(os.path.realpath(__file__))[0]
 TEST_PATH = ['/home/robot/RL/data/new_grp1']
 # specify the version of test model
-VERSION = "n1_noangle_lr"
-TRAIN_DIR = "training/" + VERSION
-TRAIN_DIR = os.path.join(PATH, TRAIN_DIR)
+VERSION = "virf_change_action_10"
+TRAIN_DIR = PATH + "/training/" + VERSION
 # the following files are all in training directories
-READ_NETWORK_DIR = "saved_networks_" + VERSION
-READ_NETWORK_DIR = os.path.join(TRAIN_DIR, READ_NETWORK_DIR)
+READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + VERSION
 # used in pre-process the picture
 RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
@@ -199,7 +197,6 @@ def testNetwork():
         	success_cnt = 0.0
         	total_steps = 0.0
 		for test in range(TEST_ROUND):
-
 		    init_angle, init_img_path = test_env[l].reset()
 		                
 		    # generate the first state, a_past is 0

@@ -19,11 +19,11 @@ REFERENCE_PATH = "/home/robot/RL/data/new_grp1" # the virtual env for max focus
 # IMAGE_PATH = '/home/robot/RL/grp1'
 SUCCESS_REWARD = 100
 FAILURE_REWARD = -100
-FOCUS_REWARD_NORM = 5.0
-# ACTION_REWARD = 1
+FOCUS_REWARD_NORM = 50.0
+ACTION_REWARD = 1
 MAX_STEPS = 20
 # maximum and minimum limitations, a little different from collectenv.py
-# only part of the data is used: from 150.jpg to 180.jpg
+# only part of the data is used.
 MAX_ANGLE = 69.0
 MIN_ANGLE = 30.0
 CHANGE_POINT_RANGE = 1.5
@@ -36,6 +36,8 @@ TERMINAL = 0
 FINE_NEG = -0.3
 COARSE_NEG = -0.3*TIMES
 
+RESIZE_WIDTH = 128
+RESIZE_HEIGHT = 128
 
 class FocusEnv():
     def __init__(self, SAVE_PIC_PATH):
@@ -76,6 +78,7 @@ class FocusEnv():
 
 	# define the last focus
 	img = cv2.imread(pic_name)
+	img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 	self.last_focus = TENG(img)
 	return self.cur_state, init_path
 
@@ -109,31 +112,39 @@ class FocusEnv():
         	ur.send_movej_screw(ur.DOWN)
         ur.camera_take_pic(pic_name)
         next_image_path = pic_name
+	pic = cv2.imread(pic_name)
+	pic = cv2.cvtColor(cv2.resize(pic, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+	focus = TENG(pic)
 
     	# special termination
     	if self.cur_state > MAX_ANGLE or self.cur_state < MIN_ANGLE:
-    	    	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(pic_name), True
+    	    	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(focus), True
 
 	# choose to terminate
 	if input_action == TERMINAL:
-	    	if self.cur_state >= self.terminal_angle_low and self.cur_state <= self.terminal_angle_high:
+	    	if focus > 0.8 * self.max_focus:
 			return self.cur_state, next_image_path, SUCCESS_REWARD, True
-	    	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(pic_name), True
+	    	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(focus), True
 
 	# special case - failure
 	if self.cur_step >= MAX_STEPS:
-	    	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(pic_name), True
+	    	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(focus), True
 
-	return self.cur_state, next_image_path, self.get_reward(pic_name), False
+	action_reward = -ACTION_REWARD
+	if focus > 0.6 * self.max_focus:
+		if abs(input_action) < 1.0: # fine tune
+			action_reward = ACTION_REWARD	
+	else:
+		if abs(input_action) > 1.0: # coarse tune
+			action_reward = ACTION_REWARD
+	return self.cur_state, next_image_path, action_reward + self.get_reward(focus), False
 
     '''
     get_reward - reward determination
     generate reward from the current taking pictures, should be less than 0
     '''
-    def get_reward(self, pic_name):
-	pic = cv2.imread(pic_name)
-	cur_focus = TENG(pic)
-	reward = (self.last_focus - cur_focus) * FOCUS_REWARD_NORM / self.max_focus
+    def get_reward(self, cur_focus):
+	reward = (cur_focus - self.last_focus) * FOCUS_REWARD_NORM / self.max_focus
 	print("last", self.last_focus, "cur", cur_focus, "reward is", reward)
 	self.last_focus = cur_focus # update
 	return reward # return
@@ -172,13 +183,17 @@ class FocusEnv():
     def get_max_focus(self):
     	cur_angle = MIN_ANGLE
     	max_focus = 0.0
+	# walk through all the images in the directory
     	while cur_angle <= MAX_ANGLE:
     		pic_name = os.path.join(REFERENCE_PATH, str(cur_angle)+'.jpg')
+		print("calculating %s" %pic_name)
     		img = cv2.imread(pic_name)
+		img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
     		cur_focus = TENG(img)
     		if cur_focus > max_focus:
     			max_focus = cur_focus
-    		cur_angle += 0.3
+    		cur_angle += 0.3 # move to the next picture
+	print("max foucs is", max_focus)
     	return max_focus
 
 
