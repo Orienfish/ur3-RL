@@ -21,6 +21,46 @@ import matplotlib.pyplot as plt
 ###################################################################################
 # PATH = "/home/robot/RL" # current working path
 PATH = os.path.split(os.path.realpath(__file__))[0]
+# tf.app.flags defined input parameters
+# Necessary: VERSION, ENV_PATH.
+# Annotate the parameters in training and in virtual environments
+# tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
+tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
+# tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
+# tf.app.flags.DEFINE_string('ENV_PATH', 'trainenv_virf_v5', 'path of environment class file')
+# tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 50000, 'number of time steps in one training')
+# tf.app.flags.DEFINE_integer('OBSERVE', 1000, 'number of time steps to observe before training')
+# tf.app.flags.DEFINE_integer('EXPLORE', 30000, 'number of time steps to explore after observation')
+# tf.app.flags.DEFINE_integer('REPLAY_MEMORY', 500, 'number of previous transitions to remember')
+# tf.app.flags.DEFINE_float('LEARNING_RATE', 0.001, 'learning rate for optimizer')
+tf.app.flags.DEFINE_integer('TEST_ROUND', 10, 'how many episodes in the test')
+# tf.app.flags.DEFINE_float('GAMMA', 0.99, 'decay rate of past observations')
+# tf.app.flags.DEFINE_integer('BATCH', 32, 'size of minibatch')
+# tf.app.flags.DEFINE_float('FINAL_EPSILON', 0.001, 'final value of epsilon')
+# tf.app.flags.DEFINE_float('INITIAL_EPSILON', 0.01, 'starting value of epsilon')
+# tf.app.flags.DEFINE_integer('COST_RECORD_STEP', 100, 'cost recording step')
+# tf.app.flags.DEFINE_integer('NETWORK_RECORD_STEP', 1000, 'network recording step')
+# tf.app.flags.DEFINE_integer('REWARD_RECORD_STEP', 100, 'reward recording step')
+# tf.app.flags.DEFINE_integer('STEP_RECORD_STEP', 100, 'step recording step')
+# tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
+tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.333, 'how much space taken per gpu')
+tf.app.flags.DEFINE_integer('MAX_STEPS', 10, 'max steps defined in env')
+tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
+tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
+FLAGS = tf.app.flags.FLAGS
+
+# define global variables
+env = None
+# LOG_DIR = None
+TRAIN_DIR = None
+# BASED_DIR = None
+READ_NETWORK_DIR = None
+# SAVE_NETWORK_DIR = None
+# FILE_SUCCESS = None
+# FILE_REWARD = None
+# FILE_STEP = None
+ACTION_NORM = None
+
 # specify the version of test model
 VERSION = "n1_noangle_lr"
 TRAIN_DIR = PATH + "/training/" + VERSION
@@ -261,40 +301,40 @@ def record_end_focus():
     # data to record: endf and step
     endfList = []
     stepList = []
+    epiDirs = []
+    imageList = []
 
     # get all the directories under TEST_DIR
-    epiList = os.listdir(TEST_DIR)
-    # remove existing endf.png
-    if 'endf.png' in epiList:
-	epiList.remove('endf.png')
-    epiList.sort(key=lambda obj:int(obj)) # sort episode list
+    for root, dirs, files in os.walk(TEST_DIR):
+        for dir in dirs:
+            epiDirs.append(dir)
+    epiDirs.sort(key=lambda obj:int(obj)) # only process dirs, sort episode dirs
 
     # walk through the folder
-    for p in range(len(epiList)):
+    for p in range(len(epiDirs)):
+        imageList = [] # clear list
         # get into one episode directory
-	epipath = os.path.join(TEST_DIR, epiList[p])
-	imageList = os.listdir(epipath)
+	for root, dirs, files in os.walk(os.path.join(TEST_DIR, epiDirs[p])):
+        	for file in files:
+            		if os.path.splitext(file)[1] == '.jpg':
+                		imageList.append(file)
 	# print(imageList)
-	# remove existing f_change.png
-	if 'f_change.png' in imageList:
-		imageList.remove('f_change.png')
+	# sort
 	imageList.sort(key=lambda obj:int(obj.split('_')[0])) # sort image list
 	fList = [] # clear the list
-	step = 0 # count the step from 0
 
 	# walk through the images	
 	for i in range(len(imageList)):
-		img_path = os.path.join(epipath, imageList[i])
+		img_path = TEST_DIR + '/' + epiDirs[p] + '/' + imageList[i]
 		print("processing %s" %img_path)
 		img = cv2.imread(img_path)
 		img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 		focus = TENG(img)
 		fList.append(focus)
-		step += 1
 	# plot focus changing in one episode
-	plot_focus_in_one_episode(epipath, p, fList)
+	plot_focus_in_one_episode(os.path.join(TEST_DIR, epiDirs[p]), p, fList)
 	endfList.append(fList[-1]) # add the final focus to endfList
-	stepList.append(step)
+	stepList.append(len(imageList))
     plot_histogram(endfList, stepList)
     return
 
@@ -314,18 +354,22 @@ plot histogram of end focus measure and steps
 '''
 def plot_histogram(endfList, stepList):
     # plot focus histogram
+    print(endfList)
     plt.hist(endfList, bins=10, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
     plt.xlabel("Focus Measure Region")
     plt.ylabel("Frequency")
     plt.title("Endpoint Focus Measure Distribution")
-    plt.savefig(os.path.join(TEST_DIR, "endf"), dpi=1200)
+    plt.savefig(os.path.join(TEST_DIR, "endf"), dpi=600)
+    plt.show()
 
     # plot steps histogram
+    print(stepList)
     plt.hist(stepList, bins=env.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
     plt.xlabel("Steps Region")
     plt.ylabel("Frequency")
     plt.title("Endpoint Steps Distribution")
-    plt.savefig(os.path.join(TEST_DIR, "endstep"), dpi=1200)
+    plt.savefig(os.path.join(TEST_DIR, "endstep"), dpi=600)
+    plt.show()
 
 if __name__ == '__main__':   
 	# testNetwork()

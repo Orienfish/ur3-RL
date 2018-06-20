@@ -60,9 +60,7 @@ READ_NETWORK_DIR = None
 # FILE_REWARD = None
 # FILE_STEP = None
 ACTION_NORM = None
-
-# specify the version of test model
-VERSION = "virf_change_action_10"
+TEST_RESULT_PATH = None
 
 # used in pre-process the picture
 RESIZE_WIDTH = 128
@@ -251,7 +249,6 @@ def testNetwork():
 			angle_new, img_path_t1, terminal, success = test_env[l].test_step(a_input)
 
 			if terminal:
-				# save_last_pic(test, test_env.cur_state, test_env.dic[test_env.cur_state])
 			        success_cnt += int(success) # only represents the rate of active terminate
 			        total_steps += step
                     stepList += step
@@ -278,25 +275,31 @@ def testNetwork():
     	step_cost = total_steps / FLAGS.TEST_ROUND
     
     print("test grp:", FLAGS.TEST_PATH, "success_rate:", success_rate, "step per episode:", step_cost)
-    plot_result()
+    plot_result(success_rate, step_cost, stepList)
     return success_rate
 
 '''
-save_terminal_pic - save the final picture and use the episode num and
-		    the final angle to name it
+plot_result - plot testing result
 '''
-def save_terminal_pic(epi_num, angle_new, img_path_t1):
-    img = cv2.imread(img_path_t1)
-    # to avoid '.' appears in file name
-    new_pic_name = str(epi_num) + '_' + str(angle_new).replace(".", "_", 1)
-    new_pic_path = os.path.join(TEST_DIR, new_pic_name)
-    cv2.imwrite(new_pic_path, img)
+def plot_result(success_rate, step_cost, stepList):
+    txtFile = os.path.join(TEST_RESULT_PATH, 'result.txt') 
+    with open(txtFile, 'w') as f:
+        Data = "success rate:" + str(success_rate) + " step per episode:" + str(step_cost)
+        f.write(Data)
+    # plot steps histogram
+    print(stepList)
+    plt.hist(stepList, bins=env.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
+    plt.xlabel("Steps Region")
+    plt.ylabel("Frequency")
+    plt.title("Endpoint Steps Distribution")
+    plt.savefig(os.path.join(TEST_RESULT_PATH, "endstep"), dpi=600)
+    plt.show()
 
 '''
 main
 '''
 def main(_):
-    global TRAIN_DIR, READ_NETWORK_DIR, ACTION_NORM, env
+    global TRAIN_DIR, READ_NETWORK_DIR, ACTION_NORM, env, TEST_RESULT_PATH
     # import env
     env = __import__(FLAGS.ENV_PATH)
     # normalize the action
@@ -306,6 +309,10 @@ def main(_):
     TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
     # the following files are all in training directories
     READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
+    # dir that save the result
+    TEST_RESULT_PATH = PATH + "/testing/virtest_" + FLAGS.VERSION
+    if not os.path.isdir(TEST_RESULT_PATH):
+        os.makedirs(TEST_RESULT_PATH)
     # start testing!
     testNetwork()
 
