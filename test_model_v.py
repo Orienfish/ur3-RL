@@ -251,7 +251,7 @@ def testNetwork():
 			if terminal:
 			        success_cnt += int(success) # only represents the rate of active terminate
 			        total_steps += step
-                    stepList += step
+                                stepList += step
 			        break
 			            
 			img_t1 = cv2.imread(img_path_t1)
@@ -278,6 +278,7 @@ def testNetwork():
     plot_result(success_rate, step_cost, stepList)
     return success_rate
 
+
 '''
 plot_result - plot testing result
 '''
@@ -295,6 +296,7 @@ def plot_result(success_rate, step_cost, stepList):
     plt.savefig(os.path.join(TEST_RESULT_PATH, "endstep"), dpi=600)
     plt.show()
 
+
 '''
 main
 '''
@@ -306,11 +308,11 @@ def main(_):
     ACTION_NORM = 0.3*env.TIMES
 
     # directories in training
-    TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
+    TRAIN_DIR = PATH + "/virtraining/" + FLAGS.VERSION
     # the following files are all in training directories
     READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
     # dir that save the result
-    TEST_RESULT_PATH = PATH + "/testing/virtest_" + FLAGS.VERSION
+    TEST_RESULT_PATH = PATH + "/virtesting/" + FLAGS.VERSION
     if not os.path.isdir(TEST_RESULT_PATH):
         os.makedirs(TEST_RESULT_PATH)
     # start testing!

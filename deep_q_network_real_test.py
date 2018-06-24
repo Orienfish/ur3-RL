@@ -26,7 +26,7 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
 tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
 # tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
-tf.app.flags.DEFINE_string('ENV_PATH', 'realenv_test', 'path of environment class file')
+tf.app.flags.DEFINE_string('ENV_PATH', 'realenv', 'path of environment class file')
 # tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 50000, 'number of time steps in one training')
 # tf.app.flags.DEFINE_integer('OBSERVE', 1000, 'number of time steps to observe before training')
 # tf.app.flags.DEFINE_integer('EXPLORE', 30000, 'number of time steps to explore after observation')
@@ -196,7 +196,7 @@ Return: success rate
 '''
 def testNetwork():
     # init the real test environment
-    test_env = env.FocusEnv([TEST_RESULT_PATH, None, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAG.MAX_ANGLE])
+    test_env = env.FocusEnv([TEST_RESULT_PATH, None, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
     '''
     Start tensorflow
     '''
@@ -209,7 +209,7 @@ def testNetwork():
         sess.run(tf.global_variables_initializer())
 
         # load in half-trained networks
-        if FLAGS.BASED_VERSION:
+        if FLAGS.VERSION:
             checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
             if checkpoint and checkpoint.model_checkpoint_path:
                     saver.restore(sess, checkpoint.model_checkpoint_path)
@@ -356,16 +356,16 @@ def plot_histogram(endfList, stepList):
     plt.xlabel("Focus Measure Region")
     plt.ylabel("Frequency")
     plt.title("Endpoint Focus Measure Distribution")
-    plt.savefig(os.path.join(TEST_DIR, "endf"), dpi=600)
+    plt.savefig(os.path.join(TEST_RESULT_PATH, "endf"), dpi=600)
     plt.show()
 
     # plot steps histogram
     print(stepList)
-    plt.hist(stepList, bins=env.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
+    plt.hist(stepList, bins=FLAGS.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
     plt.xlabel("Steps Region")
     plt.ylabel("Frequency")
     plt.title("Endpoint Steps Distribution")
-    plt.savefig(os.path.join(TEST_DIR, "endstep"), dpi=600)
+    plt.savefig(os.path.join(TEST_RESULT_PATH, "endstep"), dpi=600)
     plt.show()
 
 '''
@@ -379,11 +379,11 @@ def main(_):
     ACTION_NORM = 0.3*env.TIMES
 
     # specify the important directories
-    TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
+    TRAIN_DIR = PATH + "/virtraining/" + FLAGS.VERSION
     # the following files are all in training directories
     READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
     # test result folder
-    TEST_RESULT_PATH = PATH + "/testing/" + FLAGS.VERSION
+    TEST_RESULT_PATH = PATH + "/realtesting/" + FLAGS.VERSION
     if not os.path.isdir(TEST_RESULT_PATH):
         os.makedirs(TEST_RESULT_PATH)
 
@@ -391,8 +391,8 @@ def main(_):
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.GPU_LIST
     
     # start real test!
-    success, step = testNetwork()
-    record_end_focus(success, step)
+    # success, step = testNetwork()
+    record_end_focus(0.0, 8.0)
 
 if __name__ == '__main__':   
 	tf.app.run()

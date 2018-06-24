@@ -629,9 +629,9 @@ def main(_): # must have input parameter
     	ACTION_NORM = 0.3*env.TIMES
 
 	# define variables
-	LOG_DIR = PATH + "/trainlog/" + FLAGS.VERSION
-	TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
-	BASED_DIR = PATH + "/training/" + FLAGS.BASED_VERSION
+	LOG_DIR = PATH + "/virlog/" + FLAGS.VERSION
+	TRAIN_DIR = PATH + "/virtraining/" + FLAGS.VERSION
+	BASED_DIR = PATH + "/virtraining/" + FLAGS.BASED_VERSION
 	# if directory does not exist, new it
 	if not os.path.isdir(TRAIN_DIR):
 	        os.makedirs(TRAIN_DIR)

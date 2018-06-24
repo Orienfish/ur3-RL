@@ -23,7 +23,7 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # MIN_ANGLE = 30.0
 SUCCESS_REWARD = 100
 FAILURE_REWARD = -100
-FOCUS_REWARD_NORM = 50.0
+FOCUS_REWARD_NORM = 10.0
 # judge standart
 CHANGE_POINT_THRES = 0.6
 SUCCESS_THRES = 0.9
@@ -35,6 +35,9 @@ FINE_POS = 0.3
 TERMINAL = 0
 FINE_NEG = -0.3
 COARSE_NEG = -0.3*TIMES
+# pic resize
+RESIZE_WIDTH = 128
+RESIZE_HEIGHT = 128
 
 
 class FocusEnv(): # one class for one folder
@@ -135,17 +138,17 @@ class FocusEnv(): # one class for one folder
     	if self.cur_step >= self.max_steps:
             	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(focus), True
 
-    '''
-    action_reward = -ACTION_REWARD # determine the action reward
-    if focus > self.change_point_focus:
-        if abs(input_action) < 1.0: # fine tune
-            action_reward = ACTION_REWARD   
-    else:
-        if abs(input_action) > 1.0: # coarse tune
-            action_reward = ACTION_REWARD
-    '''
-    # return self.cur_state, next_image_path, action_reward + self.get_reward(focus), False
-    return self.cur_state, next_image_path, self.get_reward(focus), False
+        '''
+        action_reward = -ACTION_REWARD # determine the action reward
+        if focus > self.change_point_focus:
+            if abs(input_action) < 1.0: # fine tune
+                action_reward = ACTION_REWARD   
+        else:
+            if abs(input_action) > 1.0: # coarse tune
+                action_reward = ACTION_REWARD
+        '''
+        # return self.cur_state, next_image_path, action_reward + self.get_reward(focus), False
+        return self.cur_state, next_image_path, self.get_reward(focus), False
 
 
     '''

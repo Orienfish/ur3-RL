@@ -22,7 +22,6 @@ import random
 import numpy as np
 from collections import deque
 # import pycontrol as ur
-import realenv_train as env
 from ctypes import *
 import matplotlib.pyplot as plt
 import time
@@ -192,7 +191,7 @@ with tf.name_scope('cost'):
     tf.summary.scalar('cost', cost)
 # define training step
 with tf.name_scope('train'):
-    optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
+    optimizer = tf.train.AdamOptimizer(FLAGS.LEARNING_RATE)
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         train_step = optimizer.minimize(cost)
@@ -226,7 +225,7 @@ def trainNetwork():
         layout_dashboard(train_writer)
 
         # load in half-trained networks
-        if BASED_VERSION:
+        if FLAGS.BASED_VERSION:
             checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
             if checkpoint and checkpoint.model_checkpoint_path:
                 saver.restore(sess, checkpoint.model_checkpoint_path)
@@ -300,7 +299,7 @@ def trainNetwork():
                 Training
                 '''
             	# only train if done observing
-            	if t > OBSERVE:
+            	if t > FLAGS.OBSERVE:
             		# sample a minibatch to train on
             	    minibatch = random.sample(D, FLAGS.BATCH)
 
@@ -510,12 +509,12 @@ def main(_):
     ACTION_NORM = 0.3*env.TIMES
 
     # define important directories
-    LOG_DIR = PATH + "/trainlog/" + FLAGS.VERSION
-    TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
+    LOG_DIR = PATH + "/reallog/" + FLAGS.VERSION
+    TRAIN_DIR = PATH + "/realtraining/" + FLAGS.VERSION
     # if directory does not exist, new it
     if not os.path.isdir(TRAIN_DIR):
         os.makedirs(TRAIN_DIR)
-    BASED_DIR = PATH + "/training/" + FLAGS.BASED_VERSION
+    BASED_DIR = PATH + "/virtraining/" + FLAGS.BASED_VERSION
     # the following files are all in training directories
     READ_NETWORK_DIR = BASED_DIR + "/saved_networks_" + FLAGS.BASED_VERSION
     SAVE_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
