@@ -1,3 +1,4 @@
+
 ##################################################################
 # This file is the real training environment.
 # Include the state transfer. All the image processing are not here.
@@ -40,40 +41,47 @@ RESIZE_WIDTH = 128
 RESIZE_HEIGHT = 128
 
 
-class FocusEnv(): # one class for one folder
-    def __init__(self, info):  # info:[SAVE_PIC_PATH, REFERENCE_PATH, MAX_STEPS, MIN_ANGLE, MAX_ANGLE]
+class FocusEnvTest(): # one class for one folder
+    def __init__(self, info, pathinfo):  # info:[MAX_STEPS, MIN_ANGLE, MAX_ANGLE]
+                                         # pathinfo:[MAIN_DIR, REFERENCE_DIR]
         # COARSE NEG, FINE NEG, TERMINAL, FINE POS, COARSE POS
         self.actions = [COARSE_NEG, FINE_NEG, TERMINAL, FINE_POS, COARSE_POS]
-        self.save_pic_path, self.reference_path = info[0], info[1]
-        self.max_steps, self.min_angle, self.max_angle = info[2], info[3], info[4]
-        self.cur_state = 0.0 # initial with 0
-        self.episode = 0
-        
-        # refer f measure
-        if self.reference_path: # train mode
-            self.get_max_focus() # set focus points
-        # the terminal angle should be acknouwledged during the training process
-        ur.system_init()
+        self.max_steps, self.min_angle, self.max_angle = info[0], info[1], info[2]
+        self.main_dir, self.reference_path = pathinfo[0], pathinfo[1]
+
+        self.cur_state = 0.0  # initial with 0.0 
+        self.episode = 0 # init episode num
+        self.get_max_focus() # set focus points
+
+        # ur.system_init() # If call test with train at the same time, annotate this sentence out
 
     def __del__(self):
-        ur.system_close()
+        # ur.system_close()  # If call test with train at the same time, annotate this sentence out
+	pass
 
-    def reset(self):
-        # record the final state of last episode
-        last_state = self.cur_state
-        last_state = round(last_state, 2) # just in case
+    def reset(self, other_env_state=-1.0, test_cnt=0): # -1.0 an impossible value, test_cnt represents the index of current test
+        # record the final state of last episode or last state of the other env
+        if other_env_state == -1.0: # reload last state from the same env
+            last_state = self.cur_state
+            last_state = round(last_state, 2) # just in case
+        else:
+            last_state = round(other_env_state, 2) # init a new test, reload last state from the other env
+            self.save_pic_path = os.path.join(self.main_dir, str(test_cnt))
+            if os.path.isdir(self.save_pic_path): # if already exists, delete
+                shutil.rmtree(self.save_pic_path)
+            os.makedirs(self.save_pic_path) # new it
         # randomly decide the new initial state, the angle here is not accurate, just for random actions
         state = random.random() * (self.max_angle - self.min_angle)
         self.cur_state = self.min_angle + state
         self.cur_state = round(self.cur_state, 2)
         self.cur_step = 0
         self.episode = self.episode + 1
+
         # fugure out the place to save pic
 	# use separate dirs under self.save_pic_path
         self.episode_dir = os.path.join(self.save_pic_path, str(self.episode))
         if not os.path.isdir(self.episode_dir):
             os.makedirs(self.episode_dir)
-
         # generate first image path
         pic_name = str(self.cur_step) + '_' + str(self.cur_state) + '.jpg'
         pic_name = os.path.join(self.episode_dir, pic_name)
@@ -89,20 +97,17 @@ class FocusEnv(): # one class for one folder
 
     '''
     step - regulations of transfering between states
-
     Input: input_action
     Return: next_state - the total angle of next state
             next_image_path - the image path of next state(the dictionary is not accessible from outside)
             reward - reward of this single operation
             terminal - True or False
     '''
-    def step(self, input_action): # action is the angle to move
+    def test_step(self, input_action): # action is the angle to move
         self.cur_step = self.cur_step + 1
         # fugure out the place to save pic
         pic_name = str(self.cur_step) + '_' + str(self.cur_state) + '.jpg'
         pic_name = os.path.join(self.episode_dir, pic_name)
-        last_state = self.cur_state
-        last_state = round(last_state, 2) # just in case
         # update self.cur_state 
     	self.cur_state = self.cur_state + input_action
         self.cur_state = round(self.cur_state, 2)
@@ -111,7 +116,7 @@ class FocusEnv(): # one class for one folder
         # move to the next state and take a pic
         if abs(input_action) > 1: # COARSE
             ur.change_focus_mode(ur.COARSE)
-        else: # fine
+        elif abs(input_action) > 0.0: # fine
             ur.change_focus_mode(ur.FINE)
         if input_action > 0: # UP
             ur.send_movej_screw(ur.UP)
@@ -119,84 +124,23 @@ class FocusEnv(): # one class for one folder
             ur.send_movej_screw(ur.DOWN)
         ur.camera_take_pic(pic_name)
         next_image_path = pic_name
-        # calculate focus
-        pic = cv2.imread(pic_name)
-        pic = cv2.cvtColor(cv2.resize(pic, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-        focus = TENG(pic)
 
         # special termination
         if self.cur_state > self.max_angle or self.cur_state < self.min_angle:
-                return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(focus), True
-
+                return self.cur_state, next_image_path, True, False
+    
         # choose to terminate
         if input_action == TERMINAL:
+                focus = TENG(pic_name)
                 if focus > self.success_focus:
-            		return self.cur_state, next_image_path, SUCCESS_REWARD, True
-            	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(focus), True
+                        return self.cur_state, next_image_path, True, True # success!
+                return self.cur_state, next_image_path, True, False
 
-    	# special case - failure
-    	if self.cur_step >= self.max_steps:
-            	return self.cur_state, next_image_path, FAILURE_REWARD + self.get_reward(focus), True
+        # special case - failure
+        if self.cur_step >= self.max_steps:
+                return self.cur_state, next_image_path, True, False
 
-        '''
-        action_reward = -ACTION_REWARD # determine the action reward
-        if focus > self.change_point_focus:
-            if abs(input_action) < 1.0: # fine tune
-                action_reward = ACTION_REWARD   
-        else:
-            if abs(input_action) > 1.0: # coarse tune
-                action_reward = ACTION_REWARD
-        '''
-        # return self.cur_state, next_image_path, action_reward + self.get_reward(focus), False
-        return self.cur_state, next_image_path, self.get_reward(focus), False
-
-
-    '''
-    step - regulations of transfering between states
-
-    Input: input_action
-    Return: next_state - the total angle of next state
-    	    next_image_path - the image path of next state(the dictionary is not accessible from outside)
-    	    reward - reward of this single operation
-    	    terminal - True or False
-    '''
-    def test_step(self, input_action): # action is the angle to move
-        print("input_action", input_action)
-    	self.cur_step = self.cur_step + 1
-    	# figure out the place to save pic
-	pic_name = str(self.cur_step) + '_' + str(self.cur_state) + '.jpg'
-    	pic_name = os.path.join(self.episode_dir, pic_name)
-    	last_state = self.cur_state
-    	last_state = round(last_state, 2) # just in case
-    	# update self.cur_state 
-	self.cur_state = self.cur_state + input_action
-        self.cur_state = round(self.cur_state, 2)
-        # move to the next state and take a pic
-        if abs(input_action) > 1: # COARSE
-        	ur.change_focus_mode(ur.COARSE)
-        else: # fine
-        	ur.change_focus_mode(ur.FINE)
-        if input_action > 0: # UP
-        	ur.send_movej_screw(ur.UP)
-        elif input_action < 0: # DOWN
-        	ur.send_movej_screw(ur.DOWN)
-        ur.camera_take_pic(pic_name)
-        next_image_path = pic_name
-
-    	# special termination
-    	if self.cur_state > self.max_angle or self.cur_state < self.min_angle:
-    	    	return self.cur_state, next_image_path, True, False
-	
-	# choose to terminate
-	if input_action == TERMINAL:
-		# the second true only represents that terminating by TERMINAL action
-	    	return self.cur_state, next_image_path, True, True
-
-	# special case - failure
-	if self.cur_step >= self.max_steps:
-	    	return self.cur_state, next_image_path, True, False
-
-	return self.cur_state, next_image_path, False, False
+        return self.cur_state, next_image_path, False, False
 
 	
     '''
@@ -210,9 +154,7 @@ class FocusEnv(): # one class for one folder
             pic_name = os.path.join(self.reference_path, str(cur_angle)+'.jpg')
             print("calculating %s" %pic_name)
             # read and calculate focus
-            img = cv2.imread(pic_name)
-            img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-            cur_focus = TENG(img)
+            cur_focus = TENG(pic_name)
             if cur_focus > max_focus:
                     max_focus = cur_focus
             cur_angle += 0.3 # move to the next picture
@@ -221,17 +163,6 @@ class FocusEnv(): # one class for one folder
         self.success_focus = max_focus * SUCCESS_THRES
         self.max_focus = max_focus
         return max_focus
-
-
-    '''
-    get_reward - reward determination
-    generate reward from the current taking pictures, should be less than 0
-    '''
-    def get_reward(self, cur_focus):
-    	reward = (cur_focus - self.success_focus) * FOCUS_REWARD_NORM / self.max_focus
-    	print("max", self.success_focus, "cur", cur_focus, "reward is", reward)
-    	# self.last_focus = cur_focus # update
-    	return reward # return
 
 
     '''
@@ -252,7 +183,12 @@ class FocusEnv(): # one class for one folder
 		ur.move_from_to(delta_angle)
 
 
-def TENG(img):
+'''
+Tenengrad
+'''
+def TENG(img_path):
+    img = cv2.imread(img_path) # read pic
+    img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY) # resize
     guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     return numpy.mean(guassianX * guassianX + guassianY * guassianY)

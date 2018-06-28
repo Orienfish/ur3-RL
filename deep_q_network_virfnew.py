@@ -35,9 +35,9 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 
 # tf.app.flags defined input parameters
 # Necessary: VERSION, ENV_PATH
-tf.app.flags.DEFINE_string('IMAGE_PATH', '/home/robot/RL/data/new_grp2','train image path')
-tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
-tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
+tf.app.flags.DEFINE_string('IMAGE_PATH', '/home/robot/RL/data/new_grp3','train image path')
+tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp3','test image path')
+tf.app.flags.DEFINE_string('VERSION', 'virf_grp3_changepoint20', 'version of this training')
 tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
 tf.app.flags.DEFINE_string('ENV_PATH', 'trainenv_virf_v5', 'path of environment class file')
 tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 100000, 'number of time steps in one training')
@@ -57,7 +57,7 @@ tf.app.flags.DEFINE_integer('STEP_RECORD_STEP', 100, 'step recording step')
 tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
 tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.6, 'how much space taken per gpu')
 tf.app.flags.DEFINE_string('GPU_LIST', '0, 1', 'how much space taken per gpu')
-tf.app.flags.DEFINE_integer('MAX_STEPS', 10, 'max steps defined in env')
+tf.app.flags.DEFINE_integer('MAX_STEPS', 20, 'max steps defined in env')
 tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
 tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
 FLAGS = tf.app.flags.FLAGS
@@ -630,8 +630,8 @@ def main(_): # must have input parameter
 
 	# define variables
 	LOG_DIR = PATH + "/virlog/" + FLAGS.VERSION
-	TRAIN_DIR = PATH + "/virtraining/" + FLAGS.VERSION
-	BASED_DIR = PATH + "/virtraining/" + FLAGS.BASED_VERSION
+	TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
+	BASED_DIR = PATH + "/training/" + FLAGS.BASED_VERSION
 	# if directory does not exist, new it
 	if not os.path.isdir(TRAIN_DIR):
 	        os.makedirs(TRAIN_DIR)

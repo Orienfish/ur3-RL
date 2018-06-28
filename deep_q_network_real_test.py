@@ -24,9 +24,9 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # Necessary: VERSION, ENV_PATH.
 # Annotate the parameters in training and in virtual environments
 # tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
-tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
+tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint20', 'version of this training')
 # tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
-tf.app.flags.DEFINE_string('ENV_PATH', 'realenv', 'path of environment class file')
+tf.app.flags.DEFINE_string('ENV_PATH', 'realenv_test', 'path of environment class file')
 # tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 50000, 'number of time steps in one training')
 # tf.app.flags.DEFINE_integer('OBSERVE', 1000, 'number of time steps to observe before training')
 # tf.app.flags.DEFINE_integer('EXPLORE', 30000, 'number of time steps to explore after observation')
@@ -44,7 +44,7 @@ tf.app.flags.DEFINE_integer('TEST_ROUND', 10, 'how many episodes in the test')
 # tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
 tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.333, 'how much space taken per gpu')
 tf.app.flags.DEFINE_string('GPU_LIST', '0, 1', 'how much space taken per gpu')
-tf.app.flags.DEFINE_integer('MAX_STEPS', 10, 'max steps defined in env')
+tf.app.flags.DEFINE_integer('MAX_STEPS', 20, 'max steps defined in env')
 tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
 tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
 FLAGS = tf.app.flags.FLAGS
@@ -250,8 +250,7 @@ def testNetwork():
 		        success_cnt += int(success) # only represents the rate of active terminate
 		        total_steps += step
 			# get the final focus
-			img_end = cv2.imread(img_path_t1)
-			focus_end = TENG(img_end)
+			focus_end = TENG(img_path_t1)
                         print("test ", test, "ends at ", focus_end)
 		        break
 		            
@@ -272,18 +271,25 @@ def testNetwork():
 		past_info_t = action_t
 		step += 1
 
+        sess.close() # end session
+
     # calculate final return results
     success_rate = success_cnt / FLAGS.TEST_ROUND
     step_cost = total_steps / FLAGS.TEST_ROUND
     print("success_rate:", success_rate, "step per episode:", step_cost)
+    # record and focus
+    record_end_focus(success, step) 
+    return
 
-    return success_rate, step_cost
-
-def TENG(img):
-        guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
-        guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
-        return np.mean(guassianX * guassianX + 
-                          guassianY * guassianY)
+'''
+Tenengrad
+'''
+def TENG(img_path):
+    img = cv2.imread(img_path) # read pic
+    img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY) # resize
+    guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
+    guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
+    return numpy.mean(guassianX * guassianX + guassianY * guassianY)
 
 '''
 record_end_focus
@@ -324,9 +330,7 @@ def record_end_focus(success_rate, step_cost):
 	for i in range(len(imageList)):
 		img_path = TEST_RESULT_PATH + '/' + epiDirs[p] + '/' + imageList[i]
 		print("processing %s" %img_path)
-		img = cv2.imread(img_path)
-		img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-		focus = TENG(img)
+		focus = TENG(img_path)
 		fList.append(focus)
 	# plot focus changing in one episode
 	plot_focus_in_one_episode(os.path.join(TEST_RESULT_PATH, epiDirs[p]), p, fList)
@@ -379,20 +383,21 @@ def main(_):
     ACTION_NORM = 0.3*env.TIMES
 
     # specify the important directories
-    TRAIN_DIR = PATH + "/virtraining/" + FLAGS.VERSION
+    TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
     # the following files are all in training directories
     READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
     # test result folder
     TEST_RESULT_PATH = PATH + "/realtesting/" + FLAGS.VERSION
-    if not os.path.isdir(TEST_RESULT_PATH):
-        os.makedirs(TEST_RESULT_PATH)
+    # if already exists, delete it and new another one
+    if os.path.isdir(TEST_RESULT_PATH):
+        shutil.rmtree(TEST_RESULT_PATH)
+    os.makedirs(TEST_RESULT_PATH)
 
     # set GPU
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.GPU_LIST
     
     # start real test!
-    # success, step = testNetwork()
-    record_end_focus(0.0, 8.0)
+    testNetwork()
 
 if __name__ == '__main__':   
 	tf.app.run()
