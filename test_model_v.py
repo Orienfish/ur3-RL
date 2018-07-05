@@ -13,8 +13,8 @@ import sys
 import random
 import numpy as np
 # import pycontrol as ur
-import trainenv_f_action_v4 as env
 import matplotlib.pyplot as plt
+import shutil
 
 ###################################################################################
 # Important global parameters
@@ -25,7 +25,7 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # Necessary: VERSION, ENV_PATH.
 # Annotate the parameters in training
 tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
-tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint10', 'version of this training')
+tf.app.flags.DEFINE_string('VERSION', 'virf_grp3_changepoint20_l', 'version of this training')
 # tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
 tf.app.flags.DEFINE_string('ENV_PATH', 'trainenv_virf_v5', 'path of environment class file')
 # tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 50000, 'number of time steps in one training')
@@ -44,7 +44,7 @@ tf.app.flags.DEFINE_integer('TEST_ROUND', 1000, 'how many episodes in the test')
 # tf.app.flags.DEFINE_integer('STEP_RECORD_STEP', 100, 'step recording step')
 # tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
 tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.333, 'how much space taken per gpu')
-tf.app.flags.DEFINE_integer('MAX_STEPS', 10, 'max steps defined in env')
+tf.app.flags.DEFINE_integer('MAX_STEPS', 20, 'max steps defined in env')
 tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
 tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
 FLAGS = tf.app.flags.FLAGS
@@ -201,8 +201,8 @@ def testNetwork():
     # init the virtual test environment
     test_env = env.FocusEnv([FLAGS.TEST_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
     # init variables
-    success_rate = 0.0
-    step_cost = 0.0
+    success_cnt = 0.0
+    total_steps = 0.0
     stepList = [] # to record the distribution
     '''
     Start tensorflow
@@ -215,7 +215,7 @@ def testNetwork():
         sess.run(tf.global_variables_initializer())
 
         # load in half-trained networks
-        checkpoint = tf.train.get_checkpoint_state(FLAGS.READ_NETWORK_DIR)
+        checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
         if checkpoint and checkpoint.model_checkpoint_path:
                 saver.restore(sess, checkpoint.model_checkpoint_path)
                 print("Successfully loaded:", checkpoint.model_checkpoint_path)
@@ -223,54 +223,55 @@ def testNetwork():
                 print("Could not find old network weights")
 
         # start test
-		for test in range(FLAGS.TEST_ROUND):
-		    init_angle, init_img_path = test_env.reset()
+	for test in range(FLAGS.TEST_ROUND):
+		init_angle, init_img_path = test_env.reset()
 		                
-		    # generate the first state, a_past is 0
-		    img_t = cv2.imread(init_img_path)
-		    img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-		    s_t = np.stack((img_t, img_t, img_t) , axis=2)
-                    action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-		    past_info_t = action_t
-		    step = 1
-		    # start 1 episode
-		    while True:
-		        # run the network forwardly
-		        readout_t = readout.eval(feed_dict={
-				s : [s_t], 
-				past_info : [past_info_t],
-				training : False})[0]
-	                print(past_info_t)
-			print(readout_t)
-			# determine the next action
-			action_index = np.argmax(readout_t)
-			a_input = test_env.actions[action_index]
-			# run the selected action and observe next state and reward
-			angle_new, img_path_t1, terminal, success = test_env[l].test_step(a_input)
+		# generate the first state, a_past is 0
+		img_t = cv2.imread(init_img_path)
+		img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+		s_t = np.stack((img_t, img_t, img_t) , axis=2)
+                action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+		past_info_t = action_t
+		step = 1
+		# start 1 episode
+		while True:
+		    # run the network forwardly
+		    readout_t = readout.eval(feed_dict={
+			s : [s_t], 
+			past_info : [past_info_t],
+			training : False})[0]
+	            print(past_info_t)
+		    print(readout_t)
+		    # determine the next action
+		    action_index = np.argmax(readout_t)
+		    a_input = test_env.actions[action_index]
+		    # run the selected action and observe next state and reward
+		    angle_new, img_path_t1, terminal, success = test_env.test_step(a_input)
 
-			if terminal:
-			        success_cnt += int(success) # only represents the rate of active terminate
-			        total_steps += step
-                                stepList += step
-			        break
+		    if terminal:
+			success_cnt += int(success) # only represents the rate of active terminate
+			total_steps += step
+                        stepList.append(step)
+			break
 			            
-			img_t1 = cv2.imread(img_path_t1)
-			img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-			img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-			action_new = np.reshape(a_input/ACTION_NORM, (1,))
-			s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-			action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-		        past_info_t1 = action_t1
-			# print test info
-			print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env.train_data_dir, \
-				"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
+		    img_t1 = cv2.imread(img_path_t1)
+		    img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+		    img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
+		    action_new = np.reshape(a_input/ACTION_NORM, (1,))
+		    s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
+		    action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
+		    past_info_t1 = action_t1
+		    # print test info
+		    print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env.train_data_dir, \
+			"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
 
-			# update
-			s_t = s_t1
-			action_t = action_t1
-            		past_info_t = action_t
-			step += 1
+		    # update
+		    s_t = s_t1
+		    action_t = action_t1
+            	    past_info_t = action_t
+		    step += 1
 
+	sess.close()
     	success_rate = success_cnt / FLAGS.TEST_ROUND
     	step_cost = total_steps / FLAGS.TEST_ROUND
     
@@ -289,7 +290,7 @@ def plot_result(success_rate, step_cost, stepList):
         f.write(Data)
     # plot steps histogram
     print(stepList)
-    plt.hist(stepList, bins=env.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
+    plt.hist(stepList, bins=FLAGS.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
     plt.xlabel("Steps Region")
     plt.ylabel("Frequency")
     plt.title("Endpoint Steps Distribution")
@@ -308,13 +309,15 @@ def main(_):
     ACTION_NORM = 0.3*env.TIMES
 
     # directories in training
-    TRAIN_DIR = PATH + "/virtraining/" + FLAGS.VERSION
+    TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
     # the following files are all in training directories
     READ_NETWORK_DIR = TRAIN_DIR + "/saved_networks_" + FLAGS.VERSION
     # dir that save the result
     TEST_RESULT_PATH = PATH + "/virtesting/" + FLAGS.VERSION
-    if not os.path.isdir(TEST_RESULT_PATH):
-        os.makedirs(TEST_RESULT_PATH)
+    # if exists, delete and renew
+    if os.path.isdir(TEST_RESULT_PATH):
+	shutil.rmtree(TEST_RESULT_PATH)
+    os.makedirs(TEST_RESULT_PATH)
     # start testing!
     testNetwork()
 

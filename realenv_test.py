@@ -70,6 +70,7 @@ class FocusEnvTest(): # one class for one folder
             if os.path.isdir(self.save_pic_path): # if already exists, delete
                 shutil.rmtree(self.save_pic_path)
             os.makedirs(self.save_pic_path) # new it
+            self.episode = 0 # reset to 0
         # randomly decide the new initial state, the angle here is not accurate, just for random actions
         state = random.random() * (self.max_angle - self.min_angle)
         self.cur_state = self.min_angle + state

@@ -35,9 +35,10 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 
 # tf.app.flags defined input parameters
 # Necessary: VERSION, ENV_PATH
-tf.app.flags.DEFINE_string('IMAGE_PATH', '/home/robot/RL/data/new_grp3','train image path')
-tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp3','test image path')
-tf.app.flags.DEFINE_string('VERSION', 'virf_grp3_changepoint20', 'version of this training')
+tf.app.flags.DEFINE_string('IMAGE_PATH', '/home/robot/RL/data/new_grp2','train image path')
+tf.app.flags.DEFINE_string('TEST_PATH_1', '/home/robot/RL/data/new_grp3','test image path')
+tf.app.flags.DEFINE_string('TEST_PATH_2', '/home/robot/RL/data/new_grp1','test image path')
+tf.app.flags.DEFINE_string('VERSION', 'virf_changepoint20_all', 'version of this training')
 tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
 tf.app.flags.DEFINE_string('ENV_PATH', 'trainenv_virf_v5', 'path of environment class file')
 tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 100000, 'number of time steps in one training')
@@ -55,8 +56,8 @@ tf.app.flags.DEFINE_integer('NETWORK_RECORD_STEP', 1000, 'network recording step
 tf.app.flags.DEFINE_integer('REWARD_RECORD_STEP', 100, 'reward recording step')
 tf.app.flags.DEFINE_integer('STEP_RECORD_STEP', 100, 'step recording step')
 tf.app.flags.DEFINE_integer('SUCCESS_RATE_TEST_STEP', 1000, 'testing accuracy step')
-tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.6, 'how much space taken per gpu')
-tf.app.flags.DEFINE_string('GPU_LIST', '0, 1', 'how much space taken per gpu')
+tf.app.flags.DEFINE_float('PER_GPU_USAGE', 0.8, 'how much space taken per gpu')
+tf.app.flags.DEFINE_string('GPU_LIST', '1', 'how much space taken per gpu')
 tf.app.flags.DEFINE_integer('MAX_STEPS', 20, 'max steps defined in env')
 tf.app.flags.DEFINE_float('MIN_ANGLE', 30.0, 'min angle defined in env')
 tf.app.flags.DEFINE_float('MAX_ANGLE', 69.0, 'max angle defined in env')
@@ -84,6 +85,7 @@ RESIZE_HEIGHT = 128
 ACTIONS = 5 # number of valid actions
 PAST_FRAME = 3 # how many frame in one state
 # This file is the dqn reinforcement learning.
+TEST_ENV_CNT = 3
 
 ###################################################################################
 # Functions
@@ -188,14 +190,16 @@ Neural Network Definitions
 # define the cost function
 a = tf.placeholder(dtype=tf.float32, name='a', shape=(None, ACTIONS))
 y = tf.placeholder(dtype=tf.float32, name='y', shape=(None))
-accuracy = tf.placeholder(dtype=tf.float32, name='accuracy', shape=())
+accuracy = tf.placeholder(dtype=tf.float32, name='accuracy', shape=(TEST_ENV_CNT))
 # define cost
 with tf.name_scope('cost'):
     readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
     cost = tf.reduce_mean(tf.square(y - readout_action))
     tf.summary.scalar('cost', cost)
 with tf.name_scope('accuracy'):
-    tf.summary.scalar('accuracy', accuracy)
+    tf.summary.scalar('train_accuracy', accuracy[0])
+    tf.summary.scalar('test_accuracy_1', accuracy[1])
+    tf.summary.scalar('test_accuracy_2', accuracy[2])
 # define training step
 with tf.name_scope('train'):
     optimizer = tf.train.AdamOptimizer(FLAGS.LEARNING_RATE)
@@ -214,7 +218,7 @@ def trainNetwork():
     D = deque()
 
     # init the success rate
-    success_rate = 0.0
+    success_rate = [0.0 for i in range(TEST_ENV_CNT)]
 
     # initialize several different environment
     train_env = env.FocusEnv([FLAGS.IMAGE_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE]) # init an environment
@@ -425,58 +429,63 @@ Return: success rate
 '''
 def testNetwork():
     # initialize testing environment
-    test_env = env.FocusEnv([FLAGS.TEST_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
-    success_cnt = 0.0
+    train_env = env.FocusEnv([FLAGS.IMAGE_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
+    test_env_1 = env.FocusEnv([FLAGS.TEST_PATH_1, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
+    test_env_2 = env.FocusEnv([FLAGS.TEST_PATH_2, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
+    test_env_all = [train_env, test_env_1, test_env_2]
+    success_cnt = [0.0 for i in range(TEST_ENV_CNT)]
+    success_rate = [0.0 for i in range(TEST_ENV_CNT)]
 
     '''
     train set
     '''
-    for test in range(FLAGS.TEST_ROUND):
-        init_angle, init_img_path = test_env.reset()
+    for l in range(TEST_ENV_CNT):
+        for test in range(FLAGS.TEST_ROUND):
+            init_angle, init_img_path = test_env_all[l].reset()
+                    
+            # generate the first state, a_past is 0
+            img_t = cv2.imread(init_img_path)
+            img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+            s_t = np.stack((img_t, img_t, img_t) , axis=2)
+            action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+            past_info_t = action_t
+    	    step = 0
+            # start 1 episode
+            while True:
+    	        # run the network forwardly
+            	readout_t = readout.eval(feed_dict={
+    			s : [s_t], 
+    			past_info : [past_info_t],
+    			training : False})[0]
+    	    	# print(readout_t)
+                # determine the next action
+                action_index = np.argmax(readout_t)
+                a_input = test_env_all[l].actions[action_index]
+                # run the selected action and observe next state and reward
+                angle_new, img_path_t1, terminal, success = test_env_all[l].test_step(a_input)
+
+                if terminal:
+                    	success_cnt[l] += int(success)
+                    	break
                 
-        # generate the first state, a_past is 0
-        img_t = cv2.imread(init_img_path)
-        img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-        s_t = np.stack((img_t, img_t, img_t) , axis=2)
-        action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-	past_info_t = action_t
-	step = 0
-        # start 1 episode
-        while True:
-	        # run the network forwardly
-        	readout_t = readout.eval(feed_dict={
-			s : [s_t], 
-			past_info : [past_info_t],
-			training : False})[0]
-	    	# print(readout_t)
-            	# determine the next action
-            	action_index = np.argmax(readout_t)
-            	a_input = test_env.actions[action_index]
-            	# run the selected action and observe next state and reward
-            	angle_new, img_path_t1, terminal, success = test_env.test_step(a_input)
+                img_t1 = cv2.imread(img_path_t1)
+                img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+                img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
+                action_new = np.reshape(a_input/ACTION_NORM, (1,))
+                s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
+                action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
+                # print test info
+                print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env_all[l].train_data_dir, \
+                    	"/ CURRENT ANGLE", test_env_all[l].cur_state, "/ ACTION", a_input)
 
-            	if terminal:
-                	success_cnt += int(success)
-                	break
-            
-            	img_t1 = cv2.imread(img_path_t1)
-            	img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-            	img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-            	action_new = np.reshape(a_input/ACTION_NORM, (1,))
-            	s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-            	action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-            	# print test info
-            	print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env.train_data_dir, \
-                	"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
+                # update
+                s_t = s_t1
+                action_t = action_t1
+    		past_info_t = action_t
+                step += 1
 
-            	# update
-            	s_t = s_t1
-            	action_t = action_t1
-		past_info_t = action_t
-            	step += 1
-
-    success_rate = success_cnt / FLAGS.TEST_ROUND
-    print("success rate", success_rate)
+        success_rate[l] = success_cnt[l] / FLAGS.TEST_ROUND
+        print("success rate of test grp", l, "is", success_rate[l])
     return success_rate
 
 '''

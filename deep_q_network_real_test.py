@@ -24,7 +24,7 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # Necessary: VERSION, ENV_PATH.
 # Annotate the parameters in training and in virtual environments
 # tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
-tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint20', 'version of this training')
+tf.app.flags.DEFINE_string('VERSION', 'virf_grp2_changepoint20_pre', 'version of this training')
 # tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
 tf.app.flags.DEFINE_string('ENV_PATH', 'realenv_test', 'path of environment class file')
 # tf.app.flags.DEFINE_integer('NUM_TRAINING_STEPS', 50000, 'number of time steps in one training')
@@ -289,7 +289,7 @@ def TENG(img_path):
     img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY) # resize
     guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
-    return numpy.mean(guassianX * guassianX + guassianY * guassianY)
+    return np.mean(guassianX * guassianX + guassianY * guassianY)
 
 '''
 record_end_focus
@@ -343,34 +343,62 @@ def record_end_focus(success_rate, step_cost):
 plot focus in one episode
 '''
 def plot_focus_in_one_episode(epipath, p, fList):
+    plt.figure()
     plt.plot(fList, 'bx-')
     plt.xlabel("ops")
     plt.ylabel("Focus Measure")
     plt.title("Focus Changing in episode {}".format(p))
     plt.savefig(epipath + "/f_change", dpi=600)	
-    plt.show() 
+    # plt.show() 
 
 '''
 plot histogram of end focus measure and steps
 '''
 def plot_histogram(endfList, stepList):
     # plot focus histogram
-    print(endfList)
-    plt.hist(endfList, bins=10, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
+    plt.figure()
+    f = [94647,85677,93443,100003,99992,88889,99902,110029,89898,92201]
+    X = [15000, 30000, 45000, 60000, 75000, 90000, 105000, 120000]
+    X1 = [X[i]+6300 for i in range(len(X))]
+    Y1 = [0 for i in range(len(X))]
+    Y2 = [0 for i in range(len(X))]
+    for i in range(len(endfList)):
+        Y1[int(endfList[i]/15000)] += 1
+        Y2[int(f[i]/15000)] += 1
+    print(endfList, f)
+    print(Y1, Y2)
+    plt.bar(X,Y1,width = 6000,facecolor = 'lightskyblue', label='virtually-trained model') 
+    plt.bar(X1,Y2,width = 6000,facecolor = 'yellowgreen', label='real-trained model')
+    # plt.axis([0, 130000, 0, 6])
+    plt.xlabel("Focus Positions")
+    plt.ylabel("Number of Cases")
+    # plt.title("Distribution of Focused Positions")
+    plt.legend(loc="upper left")
+    plt.savefig(os.path.join(TEST_RESULT_PATH, "endf"), dpi=600)
+    # plt.show()
+
+    '''
+    
+    plt.hist(endfList, bins=10, normed=0, facecolor="blue", edgecolor="black", alpha=0.7, hold=1)
+    plt.hist(f, bins=10, normed=0, facecolor='red', edgecolor='black', alpha=0.7)
     plt.xlabel("Focus Measure Region")
-    plt.ylabel("Frequency")
+    plt.ylabel("Number of Cases")
     plt.title("Endpoint Focus Measure Distribution")
     plt.savefig(os.path.join(TEST_RESULT_PATH, "endf"), dpi=600)
     plt.show()
+    '''
 
     # plot steps histogram
+    '''
+    plt.figure()
     print(stepList)
     plt.hist(stepList, bins=FLAGS.MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
     plt.xlabel("Steps Region")
-    plt.ylabel("Frequency")
+    plt.ylabel("Number of Cases")
     plt.title("Endpoint Steps Distribution")
     plt.savefig(os.path.join(TEST_RESULT_PATH, "endstep"), dpi=600)
     plt.show()
+    '''
 
 '''
 main
@@ -389,15 +417,16 @@ def main(_):
     # test result folder
     TEST_RESULT_PATH = PATH + "/realtesting/" + FLAGS.VERSION
     # if already exists, delete it and new another one
-    if os.path.isdir(TEST_RESULT_PATH):
-        shutil.rmtree(TEST_RESULT_PATH)
-    os.makedirs(TEST_RESULT_PATH)
+    if not os.path.isdir(TEST_RESULT_PATH):
+        os.makedirs(TEST_RESULT_PATH)
 
     # set GPU
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.GPU_LIST
     
     # start real test!
-    testNetwork()
+    # testNetwork()
+    record_end_focus(0.7, 9.8)
+    
 
 if __name__ == '__main__':   
 	tf.app.run()

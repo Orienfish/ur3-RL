@@ -68,6 +68,7 @@ class FocusEnv(): # one class for one folder
 	# img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
 	# self.last_focus = TENG(img)
 	# return the angle of first state and the image name
+	print(init_path)
 	return self.cur_state, init_path
 
     '''

@@ -28,6 +28,9 @@ import time
 import shutil
 import numpy
 
+# redirect to log file
+f_handler=open('out.log', 'w')
+sys.stdout=f_handler
 ###################################################################################
 # Important global parameters
 ###################################################################################
@@ -74,8 +77,8 @@ FILE_STEP = None
 ACTION_NORM = None
 '''
 IMAGE_PATH = '/home/robot/RL/data/new_grp3'
-VERSION = 'virf_grp2_changepoint20_v3'
-BASED_VERSION = 'virf_grp2_changepoint20_v2'
+VERSION = 'virf_grp3_changepoint20_v3'
+BASED_VERSION = 'virf_grp2_changepoint20'
 TRAIN_ENV_LIB_PATH = 'realenv_train'
 TEST_ENV_LIB_PATH = 'realenv_test'
 NUM_TRAINING_STEPS = 6000
@@ -110,11 +113,8 @@ ACTION_NORM = 0.3*train_env_lib.TIMES
 LOG_DIR = PATH + "/reallog/" + VERSION
 TRAIN_DIR = PATH + "/realtraining/" + VERSION
 # if directory exists, delete it; not exists, new it
-if os.path.isdir(TRAIN_DIR):
-    shutil.rmtree(TRAIN_DIR)
-os.makedirs(TRAIN_DIR)
-if os.path.isdir(LOG_DIR):
-    shutil.rmtree(LOG_DIR)
+if not os.path.isdir(TRAIN_DIR):
+    os.makedirs(TRAIN_DIR)
 BASED_DIR = PATH + "/training/" + BASED_VERSION
 # the following files are all in training directories
 READ_NETWORK_DIR = BASED_DIR + "/saved_networks_" + BASED_VERSION
@@ -128,9 +128,8 @@ FILE_STEP = TRAIN_DIR + "/step_cnt_" + VERSION + ".txt"
 # test directory
 TEST_RESULT_PATH = PATH + "/realtesting/" + VERSION
 # if directory exists, delete it; not exists, new it
-if os.path.isdir(TEST_RESULT_PATH):
-    shutil.rmtree(TEST_RESULT_PATH)
-os.makedirs(TEST_RESULT_PATH)
+if not os.path.isdir(TEST_RESULT_PATH):
+    os.makedirs(TEST_RESULT_PATH)
 
 # set GPU
 os.environ['CUDA_VISIBLE_DEVICES'] = GPU_LIST
@@ -608,6 +607,7 @@ record_end_focus
 '''
 def record_end_focus(test_cnt, success_rate, step_cost):
     save_pic_path = os.path.join(TEST_RESULT_PATH, str(test_cnt))
+    print(save_pic_path)
     # write success rate and average steps to txt file
     txtFile = os.path.join(save_pic_path, 'result.txt') 
     with open(txtFile, 'w') as f:
@@ -619,6 +619,7 @@ def record_end_focus(test_cnt, success_rate, step_cost):
     stepList = []
     epiDirs = []
     imageList = []
+    fList = []
 
     # get all the directories under TEST_DIR
     for root, dirs, files in os.walk(save_pic_path):
@@ -627,28 +628,30 @@ def record_end_focus(test_cnt, success_rate, step_cost):
     epiDirs.sort(key=lambda obj:int(obj)) # only process dirs, sort episode dirs
 
     # walk through the folder
-    for p in range(len(epiDirs)):
+    for index in range(len(epiDirs)):
         imageList = [] # clear list
         # get into one episode directory
-    for root, dirs, files in os.walk(os.path.join(save_pic_path, epiDirs[p])):
+        for root, dirs, files in os.walk(os.path.join(save_pic_path, epiDirs[index])):
             for file in files:
                     if os.path.splitext(file)[1] == '.jpg':
                         imageList.append(file)
-    # print(imageList)
-    # sort
-    imageList.sort(key=lambda obj:int(obj.split('_')[0])) # sort image list
-    fList = [] # clear the list
-
-    # walk through the images   
-    for i in range(len(imageList)):
-        img_path = save_pic_path + '/' + epiDirs[p] + '/' + imageList[i]
-        print("processing %s" %img_path)
-        focus = TENG(img_path)
-        fList.append(focus)
-    # plot focus changing in one episode
-    plot_focus_in_one_episode(os.path.join(save_pic_path, epiDirs[p]), p, fList)
-    endfList.append(fList[-1]) # add the final focus to endfList
-    stepList.append(len(imageList))
+        # print(imageList)
+        # sort
+        imageList.sort(key=lambda obj:int(obj.split('_')[0])) # sort image list
+        fList = [] # clear the list
+        print(os.path.join(save_pic_path, epiDirs[index]))
+        # walk through the images   
+        for i in range(len(imageList)):
+            img_path = save_pic_path + '/' + epiDirs[index] + '/' + imageList[i]
+            print("processing %s" %img_path)
+            focus = TENG(img_path)
+            fList.append(focus)
+        # plot focus changing in one episode
+        plot_focus_in_one_episode(os.path.join(save_pic_path, epiDirs[index]), index, fList)
+    	print(fList)
+    	endfList.append(fList[-1]) # add the final focus to endfList
+    	stepList.append(len(imageList))
+    # endf for
     plot_histogram(save_pic_path, endfList, stepList)
     return
 
@@ -657,6 +660,7 @@ def record_end_focus(test_cnt, success_rate, step_cost):
 plot focus in one episode
 '''
 def plot_focus_in_one_episode(epipath, p, fList):
+    plt.figure()
     plt.plot(fList, 'bx-')
     plt.xlabel("ops")
     plt.ylabel("Focus Measure")
@@ -670,6 +674,7 @@ plot histogram of end focus measure and steps
 def plot_histogram(save_pic_path, endfList, stepList):
     # plot focus histogram
     print(endfList)
+    plt.figure()
     plt.hist(endfList, bins=10, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
     plt.xlabel("Focus Measure Region")
     plt.ylabel("Frequency")
@@ -679,6 +684,7 @@ def plot_histogram(save_pic_path, endfList, stepList):
 
     # plot steps histogram
     print(stepList)
+    plt.figure()
     plt.hist(stepList, bins=MAX_STEPS, normed=0, facecolor="blue", edgecolor="black", alpha=0.7)
     plt.xlabel("Steps Region")
     plt.ylabel("Frequency")
