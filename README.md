@@ -9,4 +9,4 @@ Auto-focus has wide applications in diseases diagnoises. The contribution of our
 3. We design the reward function according to focus measure functions and more importantly, we define an active termination condition which expects the agent to stop at a clear spot automaticly.
 
 The model of our system in real applications is shown in the following figure. <br>
-<div align=center><img width="600" height="500" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/systemmodel.PNG"/></div>
+<div align=center><img width="400" height="300" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/systemmodel.PNG"/></div>
