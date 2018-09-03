@@ -9,7 +9,7 @@ Auto-focus has wide applications in diseases diagnoises. The contribution of our
 3. We design the reward function according to focus measure functions and more importantly, we define an active termination condition which expects the agent to stop at a clear spot automaticly.
 
 The model of our system and hardware implementations are shown in the following figures. <br>
-<div align=certer><img width="800" height="200" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/model%26imple.png"/></div>
+<div align=certer><img width="800" height="250" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/model%26imple.png"/></div>
 
 As for experiments, the training progress are categorized into two parts: virtual training and real training. The motivation of this setting is to save time in real scenario as operating real robots takes unbearable time. Virtual experiments, which are carried out after the virtual training phase, indicates that our method could achieve 100% accuracy on a certain view with different focus range. Further training on real robots could eliminate the deviation between the simulator and real scenario, leading to reliable performances in real applications. <br>
 
