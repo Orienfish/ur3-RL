@@ -18,7 +18,7 @@ A typical virtual learning curve after 100K episodes is shown as following. <br>
 Distribution of focus positions regarding both the virtually-trained model and real-trained model is depicted in the following figure. We can see that while the virtually-trained model still finishes focusing with failure from time to time, the focused positions of the practically-trained model move rightwards and all locate in a clear enough area for human vision, indicating a 100% accuracy in real auto-focus. <br>
 <div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/endf.png"/></div>
 
-## File structure
+## File Structure
 ```
 ├── README.md                 // Help
 ├── collect              	  // Code used in collecting data to construct virtual environment.
