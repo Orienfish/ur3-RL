@@ -40,3 +40,10 @@ Distribution of focus positions regarding both the virtually-trained model and r
 ├── deep_q_network_real_test.py // DQN for practical testing.
 └── realenv_test.py           // Python class for real testing environment. Interact with deep_q_network_real_test.py. 
 ```
+As you can see, all the files can be divided into two groups: one is for Reinforcement Learning (RL) in both virtual and practical environment, the other is for collecting data to construct virtual environment. The RL group locates right under the root directory while the collecting code group is under "collect" directory. <br>
+
+What we mean by "collecting data" here is sampling discrete microscopic view with a fixed step and number them with the absolution angle of focusing knob. To help you get an intuitive idea of what we collect here, I attached a focus measure curve of all the views here: <br>
+<div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/new_grp1_focus.png"/></div>
+
+The RL code mainly constructs a DQN and triggers as well as monitors the learning process. The structure of our DQN is shown in the following figure. The whole network contains 381K parameters and requires 13.8M multiply-accumulate operations in each update (if I'm not making calculation errors lol).
+<div align=center><img width="800" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/network.png"/></div>
