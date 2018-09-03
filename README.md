@@ -38,5 +38,5 @@ Distribution of focus positions regarding both the virtually-trained model and r
 ├── deep_q_network_real_train.py // DQN for practical training.
 ├── realenv_train.py          // Python class for real training environment. Interact with deep_q_network_real_train.py.
 ├── deep_q_network_real_test.py // DQN for practical testing.
-└── realenv_test.py          // Python class for real testing environment. Interact with deep_q_network_real_test.py. 
+└── realenv_test.py           // Python class for real testing environment. Interact with deep_q_network_real_test.py. 
 ```
