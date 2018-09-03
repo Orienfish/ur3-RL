@@ -17,3 +17,26 @@ A typical virtual learning curve after 100K episodes is shown as following. <br>
 <div align=center><img width="450" height="150" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/vexp1_up.PNG"/></div>
 Distribution of focus positions regarding both the virtually-trained model and real-trained model is depicted in the following figure. We can see that while the virtually-trained model still finishes focusing with failure from time to time, the focused positions of the practically-trained model move rightwards and all locate in a clear enough area for human vision, indicating a 100% accuracy in real auto-focus. <br>
 <div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/endf.png"/></div>
+
+## File structure
+```
+├── README.md                 // Help
+├── collect              	  // Code used in collecting data to construct virtual environment.
+│   ├── collectenv_new.py     // Python code for collecting data.
+│   ├── pycontrol.py          // Python interface for controling microscope and camera.
+│   ├── lib.so                // Generated dynamic linking library from C. To control UR3 and gripper.
+│   ├── modbustcp.c/.h        // Low-level code written in C to control UR3.
+│   ├── modbusrtu.c/.h        // Low-level code written in C to control gripper.
+│   ├── init_pos.txt       	  // Record the settled initial position of UR3.
+│   ├── camera_lib.so         // Generated dynamic linking library from C. To control camera.
+│   ├── qhyccd*.h/camera.cpp  // Low-level code written in C++ to control camera.
+│   ├── main.h                // Necessary macro definitions.
+│   └── __init__.py           // Empty file. For wrapping the whole file as a python package.
+├── deep_q_network_virfnew.py // DQN for virtual training and simutaneous testing.
+├── trainenv_virf_v5.py       // Python class for virtual training environment. Interact with deep_q_network_virf_new.py.
+├── test_model_v.py           // Extra virtual test after virtual training.
+├── deep_q_network_real_train.py // DQN for practical training.
+├── realenv_train.py          // Python class for real training environment. Interact with deep_q_network_real_train.py.
+├── deep_q_network_real_test.py // DQN for practical testing.
+└── realenv_test.py          // Python class for real testing environment. Interact with deep_q_network_real_test.py. 
+```
