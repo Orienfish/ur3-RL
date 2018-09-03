@@ -16,4 +16,4 @@ As for experiments, the training progress are categorized into two parts: virtua
 A typical virtual learning curve after 100K episodes is shown as following. <br>
 <div align=center><img width="450" height="150" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/vexp1_up.PNG"/></div>
 Distribution of focus positions regarding both the virtually-trained model and real-trained model is depicted in the following figure. We can see that while the virtually-trained model still finishes focusing with failure from time to time, the focused positions of the practically-trained model move rightwards and all locate in a clear enough area for human vision, indicating a 100\% accuracy in real auto-focus. <br>
-<div align=center><img width="450" height="450" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/endf.png"/></div>
+<div align=center><img width="450" height="300" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/endf.png"/></div>
