@@ -43,14 +43,14 @@ Distribution of focus positions regarding both the virtually-trained model and r
 As you can see, all the files can be divided into two groups: one is for **Reinforcement Learning (RL)** in both virtual and practical environment, the other is for **collecting data** to construct virtual environment. The RL group locates right under the root directory while the collecting code group is under "collect" directory. <br>
 
 * What we mean by **"collecting data"** here is sampling discrete microscopic view with a fixed step and number them with the absolution angle of focusing knob. To help you get an intuitive idea of what we collect here, I attached a focus measure curve of all the views here: <br>
-<div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/new_grp1_focus.png"/></div>
+<div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/new_grp1_focus.png"/></div> <br>
 It's important to make sure that we get the complete region from blur to clear and to blur again. Due to the large file size, unfortunately, I didn't upload the dateset we collected here on Github. Feel free to contact me if you are interested in those data. <br> <br>
 
 * The **RL** code mainly constructs a *DQN* and triggers as well as monitors the learning process. The structure of our DQN is shown in the following figure. The whole network contains 381K parameters and requires 13.8M multiply-accumulate operations in each update (if I'm not making calculation errors lol).
 <div align=center><img width="800" height="250" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/network.png"/></div>
 
 ## Environment
-* PC with 8 Intel(R) Xeon(R) E5-1620 @3.50GHz CPUs, a 64GB RAM and 2 NVIDIA Quadro M4000 8GB GPUs
+* PC with 8 Intel(R) Xeon(R) E5-1620 @3.50GHz CPUs, a 64GB RAM and 2 NVIDIA Quadro M4000 8GB GPUs <br>
 Ubuntu 16.04 LTS <br>
 Python 2.7.12 <br>
 tensorflow 1.6.0 <br>
