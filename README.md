@@ -42,8 +42,8 @@ Distribution of focus positions regarding both the virtually-trained model and r
 ```
 As you can see, all the files can be divided into two groups: one is for **Reinforcement Learning (RL)** in both virtual and practical environment, the other is for **collecting data** to construct virtual environment. The RL group locates right under the root directory while the collecting code group is under "collect" directory. <br>
 
-* What we mean by **"collecting data"** here is sampling discrete microscopic view with a fixed step and number them with the absolution angle of focusing knob. To help you get an intuitive idea of what we collect here, I attached a focus measure curve of all the views here: <br>
-<div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/new_grp1_focus.png"/></div> <br>
+* What we mean by **"collecting data"** here is sampling discrete microscopic views with a fixed step and number them with the absolution angle of focusing knob. To help you get an intuitive idea of what we collect here, I attached a focus measure curve of all the views here: <br>
+<div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/new_grp1_focus.png"/></div>
 It's important to make sure that we get the complete region from blur to clear and to blur again. Due to the large file size, unfortunately, I didn't upload the dateset we collected here on Github. Feel free to contact me if you are interested in those data. <br> <br>
 
 * The **RL** code mainly constructs a *DQN* and triggers as well as monitors the learning process. The structure of our DQN is shown in the following figure. The whole network contains 381K parameters and requires 13.8M multiply-accumulate operations in each update (if I'm not making calculation errors lol).
@@ -59,7 +59,7 @@ CuDNN 7.0 <br>
 
 * [UR3 Robotic Arm](https://www.universal-robots.com/products/ur3-robot/)
 * [ROBOTIQ 2-Finger Adaptive Robot Gripper](https://www.universal-robots.com/plus/end-effectors/robotiq-2-finger-adaptive-robot-gripper/)
-* [XSZ-4GA optical microscope](https://abbey.en.alibaba.com/product/60684855332-806650703/XSZ_4GA_1600X_on_surgical_a_high_quality_operating_Binocular_Biological_Microscope.html)
+* [XSZ-4GA Optical Microscope](https://abbey.en.alibaba.com/product/60684855332-806650703/XSZ_4GA_1600X_on_surgical_a_high_quality_operating_Binocular_Biological_Microscope.html)
 
 ## Version Record
 v1 @9/3/2018 <br>
