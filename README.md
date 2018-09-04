@@ -1,6 +1,6 @@
-# Applying Deep Reinforcement Learning to Auto-Focus with UR3 Robotic Arm
+# A Robotic Auto-Focus System based on Reinforcement Learning
 Authors: Xiaofan Yu, Runze Yu, Jingsong Yang and Xiaohui Duan. <br>
-This repo includes the key implementation of our paper "A Robotic Auto-Focus System based on Deep Reinforcement Learning" to be appeared at ICARCV 2018. The link to our paper will be added later. <br>
+This repo includes the key implementation of our paper "A Robotic Auto-Focus System based on Deep Reinforcement Learning" to appear at ICARCV 2018. The link to our paper will be added later. <br>
 
 ## Overview
 Auto-focus has wide applications in diseases diagnoises. The contribution of our work can be summarized as follows:
@@ -50,13 +50,16 @@ It's important to make sure that we get the complete region from blur to clear a
 <div align=center><img width="800" height="250" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/network.png"/></div>
 
 ## Environment
+* PC with 8 Intel(R) Xeon(R) E5-1620 @3.50GHz CPUs, a 64GB RAM and 2 NVIDIA Quadro M4000 8GB GPUs
 Ubuntu 16.04 LTS <br>
 Python 2.7.12 <br>
 tensorflow 1.6.0 <br>
-
 CUDA 9.0.176 <br>
 CuDNN 7.0 <br>
-GPU related：Quadro M4000 * 2, NVIDIA-SMI 390.25, Driver 390.25
+
+* [UR3 Robotic Arm](https://www.universal-robots.com/products/ur3-robot/)
+* [ROBOTIQ 2-Finger Adaptive Robot Gripper](https://www.universal-robots.com/plus/end-effectors/robotiq-2-finger-adaptive-robot-gripper/)
+* [XSZ-4GA optical microscope](https://abbey.en.alibaba.com/product/60684855332-806650703/XSZ_4GA_1600X_on_surgical_a_high_quality_operating_Binocular_Biological_Microscope.html)
 
 ## Version Record
 v1 @9/3/2018 <br>
