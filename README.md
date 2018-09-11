@@ -1,6 +1,6 @@
-# A Robotic Auto-Focus System based on Reinforcement Learning
+# [A Robotic Auto-Focus System based on Reinforcement Learning](https://arxiv.org/abs/1809.03314)
 Authors: Xiaofan Yu, Runze Yu, Jingsong Yang and Xiaohui Duan. <br>
-This repo includes the key implementation of our paper "A Robotic Auto-Focus System based on Deep Reinforcement Learning" to appear at ICARCV 2018. You can find our contribution [here](https://arxiv.org/abs/1809.03314). <br>
+This repo includes the key implementation of our paper "A Robotic Auto-Focus System based on Deep Reinforcement Learning" to appear at ICARCV 2018. <br>
 
 ## Overview
 Auto-focus has wide applications in diseases diagnoises. The contribution of our work can be summarized as follows:
