@@ -24,7 +24,7 @@ PATH = os.path.split(os.path.realpath(__file__))[0]
 # tf.app.flags defined input parameters
 # Necessary: VERSION, ENV_PATH.
 # Annotate the parameters in training
-tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2','test image path')
+tf.app.flags.DEFINE_string('TEST_PATH', '/home/robot/RL/data/new_grp2', 'test image path')
 tf.app.flags.DEFINE_string('VERSION', 'virf_grp3_changepoint20_l', 'version of this training')
 # tf.app.flags.DEFINE_string('BASED_VERSION', '', 'version of the based model')
 tf.app.flags.DEFINE_string('ENV_PATH', 'trainenv_virf_v5', 'path of environment class file')
@@ -68,29 +68,35 @@ RESIZE_HEIGHT = 128
 
 # parameters used in testing
 # their settings relates to other files
-ACTIONS = 5 # number of valid actions
+ACTIONS = 5  # number of valid actions
 PAST_FRAME = 3
+
 
 ###################################################################################
 # Functions
 ###################################################################################
 def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev = 0.01)
+    initial = tf.truncated_normal(shape, stddev=0.01)
     return tf.Variable(initial)
+
 
 def bias_variable(shape):
-    initial = tf.constant(0.01, shape = shape)
+    initial = tf.constant(0.01, shape=shape)
     return tf.Variable(initial)
 
+
 def conv2d(x, W, stride):
-    return tf.nn.conv2d(x, W, strides = [1, stride, stride, 1], padding = "SAME")
+    return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding="SAME")
+
 
 def max_pool_2x2(x):
-    return tf.nn.max_pool(x, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = "SAME")
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
-def space_tiling(x): # expand from [None, 64] to [None, 4, 4, 64]
+
+def space_tiling(x):  # expand from [None, 64] to [None, 4, 4, 64]
     x = tf.expand_dims(tf.expand_dims(x, 1), 1)
     return tf.tile(x, [1, 4, 4, 1])
+
 
 '''
 createNetwork - set the structure of CNN
@@ -130,43 +136,43 @@ training = tf.placeholder_with_default(False, name='training', shape=())
 h_conv1 = conv2d(s, W_conv1, 4) + b_conv1
 h_bn1 = tf.layers.batch_normalization(h_conv1, axis=-1, training=training, momentum=0.9)
 h_relu1 = tf.nn.relu(h_bn1)
-h_pool1 = max_pool_2x2(h_relu1) # [None, 16, 16, 32]
+h_pool1 = max_pool_2x2(h_relu1)  # [None, 16, 16, 32]
 
 h_conv2 = conv2d(h_pool1, W_conv2, 2) + b_conv2
 h_bn2 = tf.layers.batch_normalization(h_conv2, axis=-1, training=training, momentum=0.9)
 h_relu2 = tf.nn.relu(h_bn2)
-h_pool2 = max_pool_2x2(h_relu2) # [None, 4, 4, 64]
+h_pool2 = max_pool_2x2(h_relu2)  # [None, 4, 4, 64]
 
 h_fc_info = tf.matmul(past_info, W_fc_info) + b_fc_info
 h_bn_info = tf.layers.batch_normalization(h_fc_info, axis=-1, training=training, momentum=0.9)
-h_relu_info = tf.nn.relu(h_bn_info) # [None, 64]
+h_relu_info = tf.nn.relu(h_bn_info)  # [None, 64]
 
-info_add = space_tiling(h_relu_info) # [None, 4, 4, 64]
-layer3_input = tf.concat([h_pool2, info_add], 3) # [None, 4, 4, 128]
+info_add = space_tiling(h_relu_info)  # [None, 4, 4, 64]
+layer3_input = tf.concat([h_pool2, info_add], 3)  # [None, 4, 4, 128]
 h_conv3 = conv2d(layer3_input, W_conv3, 1) + b_conv3
 h_bn3 = tf.layers.batch_normalization(h_conv3, axis=-1, training=training, momentum=0.9)
-h_relu3 = tf.nn.relu(h_bn3) # [None, 4, 4, 64]
+h_relu3 = tf.nn.relu(h_bn3)  # [None, 4, 4, 64]
 # h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
 
 h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
 h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
-h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
-h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
+h_relu4 = tf.nn.relu(h_bn4)  # [None, 4, 4, 64]
+h_pool4 = max_pool_2x2(h_relu4)  # [None, 2, 2, 64]
 
-h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
+h_pool4_flat = tf.reshape(h_pool4, [-1, 256])  # [None, 256]
 
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
 # h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
 h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
-h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
-    
+h_relu_fc1 = tf.nn.relu(h_bn_fc1)  # [None, 256]
+
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
 # h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
 h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
-h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
+h_relu_fc2 = tf.nn.relu(h_bn_fc2)  # [None, 256]
 
 # readout layer
-readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
+readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3  # [None, 5]
 
 '''
 Neural Network Definitions --- not necessary in test
@@ -197,19 +203,21 @@ testNetwork - test the training performance, calculate the success rate
 Input: s, action,readout
 Return: success rate
 '''
+
+
 def testNetwork():
     # init the virtual test environment
     test_env = env.FocusEnv([FLAGS.TEST_PATH, FLAGS.MAX_STEPS, FLAGS.MIN_ANGLE, FLAGS.MAX_ANGLE])
     # init variables
     success_cnt = 0.0
     total_steps = 0.0
-    stepList = [] # to record the distribution
+    stepList = []  # to record the distribution
     '''
     Start tensorflow
     '''
     # saving and loading networks
     saver = tf.train.Saver()
-    
+
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.PER_GPU_USAGE)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -217,64 +225,64 @@ def testNetwork():
         # load in half-trained networks
         checkpoint = tf.train.get_checkpoint_state(READ_NETWORK_DIR)
         if checkpoint and checkpoint.model_checkpoint_path:
-                saver.restore(sess, checkpoint.model_checkpoint_path)
-                print("Successfully loaded:", checkpoint.model_checkpoint_path)
+            saver.restore(sess, checkpoint.model_checkpoint_path)
+            print("Successfully loaded:", checkpoint.model_checkpoint_path)
         else:
-                print("Could not find old network weights")
+            print("Could not find old network weights")
 
         # start test
-	for test in range(FLAGS.TEST_ROUND):
-		init_angle, init_img_path = test_env.reset()
-		                
-		# generate the first state, a_past is 0
-		img_t = cv2.imread(init_img_path)
-		img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-		s_t = np.stack((img_t, img_t, img_t) , axis=2)
-                action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-		past_info_t = action_t
-		step = 1
-		# start 1 episode
-		while True:
-		    # run the network forwardly
-		    readout_t = readout.eval(feed_dict={
-			s : [s_t], 
-			past_info : [past_info_t],
-			training : False})[0]
-	            print(past_info_t)
-		    print(readout_t)
-		    # determine the next action
-		    action_index = np.argmax(readout_t)
-		    a_input = test_env.actions[action_index]
-		    # run the selected action and observe next state and reward
-		    angle_new, img_path_t1, terminal, success = test_env.test_step(a_input)
+        for test in range(FLAGS.TEST_ROUND):
+            init_angle, init_img_path = test_env.reset()
 
-		    if terminal:
-			success_cnt += int(success) # only represents the rate of active terminate
-			total_steps += step
-                        stepList.append(step)
-			break
-			            
-		    img_t1 = cv2.imread(img_path_t1)
-		    img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-		    img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-		    action_new = np.reshape(a_input/ACTION_NORM, (1,))
-		    s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-		    action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-		    past_info_t1 = action_t1
-		    # print test info
-		    print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env.train_data_dir, \
-			"/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
+            # generate the first state, a_past is 0
+            img_t = cv2.imread(init_img_path)
+            img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+            s_t = np.stack((img_t, img_t, img_t), axis=2)
+            action_t = np.stack((0.0, 0.0, 0.0), axis=0)
+            past_info_t = action_t
+            step = 1
+            # start 1 episode
+            while True:
+                # run the network forwardly
+                readout_t = readout.eval(feed_dict={
+                    s: [s_t],
+                    past_info: [past_info_t],
+                    training: False})[0]
+                print(past_info_t)
+                print(readout_t)
+                # determine the next action
+                action_index = np.argmax(readout_t)
+                a_input = test_env.actions[action_index]
+                # run the selected action and observe next state and reward
+                angle_new, img_path_t1, terminal, success = test_env.test_step(a_input)
 
-		    # update
-		    s_t = s_t1
-		    action_t = action_t1
-            	    past_info_t = action_t
-		    step += 1
+                if terminal:
+                    success_cnt += int(success)  # only represents the rate of active terminate
+                    total_steps += step
+                    stepList.append(step)
+                    break
 
-	sess.close()
-    	success_rate = success_cnt / FLAGS.TEST_ROUND
-    	step_cost = total_steps / FLAGS.TEST_ROUND
-    
+                img_t1 = cv2.imread(img_path_t1)
+                img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+                img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1))  # reshape, ready for insert
+                action_new = np.reshape(a_input / ACTION_NORM, (1,))
+                s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME - 1], axis=2)
+                action_t1 = np.append(action_new, action_t[:PAST_FRAME - 1], axis=0)
+                past_info_t1 = action_t1
+                # print test info
+                print("TEST EPISODE", test, "/ TIMESTEP", step, "/ GRP", test_env.train_data_dir, \
+                      "/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
+
+                # update
+                s_t = s_t1
+                action_t = action_t1
+                past_info_t = action_t
+                step += 1
+
+        sess.close()
+        success_rate = success_cnt / FLAGS.TEST_ROUND
+        step_cost = total_steps / FLAGS.TEST_ROUND
+
     print("test grp:", FLAGS.TEST_PATH, "success_rate:", success_rate, "step per episode:", step_cost)
     plot_result(success_rate, step_cost, stepList)
     return success_rate
@@ -283,8 +291,10 @@ def testNetwork():
 '''
 plot_result - plot testing result
 '''
+
+
 def plot_result(success_rate, step_cost, stepList):
-    txtFile = os.path.join(TEST_RESULT_PATH, 'result.txt') 
+    txtFile = os.path.join(TEST_RESULT_PATH, 'result.txt')
     with open(txtFile, 'w') as f:
         Data = "success rate:" + str(success_rate) + " step per episode:" + str(step_cost)
         f.write(Data)
@@ -301,12 +311,14 @@ def plot_result(success_rate, step_cost, stepList):
 '''
 main
 '''
+
+
 def main(_):
     global TRAIN_DIR, READ_NETWORK_DIR, ACTION_NORM, env, TEST_RESULT_PATH
     # import env
     env = __import__(FLAGS.ENV_PATH)
     # normalize the action
-    ACTION_NORM = 0.3*env.TIMES
+    ACTION_NORM = 0.3 * env.TIMES
 
     # directories in training
     TRAIN_DIR = PATH + "/training/" + FLAGS.VERSION
@@ -316,10 +328,11 @@ def main(_):
     TEST_RESULT_PATH = PATH + "/virtesting/" + FLAGS.VERSION
     # if exists, delete and renew
     if os.path.isdir(TEST_RESULT_PATH):
-	shutil.rmtree(TEST_RESULT_PATH)
+        shutil.rmtree(TEST_RESULT_PATH)
     os.makedirs(TEST_RESULT_PATH)
     # start testing!
     testNetwork()
 
+
 if __name__ == '__main__':
-	tf.app.run()
+    tf.app.run()

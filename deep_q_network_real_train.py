@@ -29,8 +29,8 @@ import shutil
 import numpy
 
 # redirect to log file
-f_handler=open('out.log', 'w')
-sys.stdout=f_handler
+f_handler = open('out.log', 'w')
+sys.stdout = f_handler
 ###################################################################################
 # Important global parameters
 ###################################################################################
@@ -107,7 +107,7 @@ TEST_ROUND = 10
 train_env_lib = __import__(TRAIN_ENV_LIB_PATH)
 test_env_lib = __import__(TEST_ENV_LIB_PATH)
 # normalize the action
-ACTION_NORM = 0.3*train_env_lib.TIMES
+ACTION_NORM = 0.3 * train_env_lib.TIMES
 
 # define important directories
 LOG_DIR = PATH + "/reallog/" + VERSION
@@ -139,29 +139,35 @@ RESIZE_HEIGHT = 128
 
 # parameters used in training but not set by flag
 # their settings relates to other files
-ACTIONS = 5 # number of valid actions
-PAST_FRAME = 3 # how many frame in one state
+ACTIONS = 5  # number of valid actions
+PAST_FRAME = 3  # how many frame in one state
+
 
 ###################################################################################
 # Functions
 ###################################################################################
 def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev = 0.01)
+    initial = tf.truncated_normal(shape, stddev=0.01)
     return tf.Variable(initial)
+
 
 def bias_variable(shape):
-    initial = tf.constant(0.01, shape = shape)
+    initial = tf.constant(0.01, shape=shape)
     return tf.Variable(initial)
 
+
 def conv2d(x, W, stride):
-    return tf.nn.conv2d(x, W, strides = [1, stride, stride, 1], padding = "SAME")
+    return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding="SAME")
+
 
 def max_pool_2x2(x):
-    return tf.nn.max_pool(x, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = "SAME")
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
-def space_tiling(x): # expand from [None, 64] to [None, 4, 4, 64]
+
+def space_tiling(x):  # expand from [None, 64] to [None, 4, 4, 64]
     x = tf.expand_dims(tf.expand_dims(x, 1), 1)
     return tf.tile(x, [1, 4, 4, 1])
+
 
 '''
 createNetwork - set the structure of CNN
@@ -201,44 +207,43 @@ training = tf.placeholder_with_default(False, name='training', shape=())
 h_conv1 = conv2d(s, W_conv1, 4) + b_conv1
 h_bn1 = tf.layers.batch_normalization(h_conv1, axis=-1, training=training, momentum=0.9)
 h_relu1 = tf.nn.relu(h_bn1)
-h_pool1 = max_pool_2x2(h_relu1) # [None, 16, 16, 32]
+h_pool1 = max_pool_2x2(h_relu1)  # [None, 16, 16, 32]
 
 h_conv2 = conv2d(h_pool1, W_conv2, 2) + b_conv2
 h_bn2 = tf.layers.batch_normalization(h_conv2, axis=-1, training=training, momentum=0.9)
 h_relu2 = tf.nn.relu(h_bn2)
-h_pool2 = max_pool_2x2(h_relu2) # [None, 4, 4, 64]
+h_pool2 = max_pool_2x2(h_relu2)  # [None, 4, 4, 64]
 
 h_fc_info = tf.matmul(past_info, W_fc_info) + b_fc_info
 h_bn_info = tf.layers.batch_normalization(h_fc_info, axis=-1, training=training, momentum=0.9)
-h_relu_info = tf.nn.relu(h_bn_info) # [None, 64]
+h_relu_info = tf.nn.relu(h_bn_info)  # [None, 64]
 
-info_add = space_tiling(h_relu_info) # [None, 4, 4, 64]
-layer3_input = tf.concat([h_pool2, info_add], 3) # [None, 4, 4, 128]
+info_add = space_tiling(h_relu_info)  # [None, 4, 4, 64]
+layer3_input = tf.concat([h_pool2, info_add], 3)  # [None, 4, 4, 128]
 h_conv3 = conv2d(layer3_input, W_conv3, 1) + b_conv3
 h_bn3 = tf.layers.batch_normalization(h_conv3, axis=-1, training=training, momentum=0.9)
-h_relu3 = tf.nn.relu(h_bn3) # [None, 4, 4, 64]
+h_relu3 = tf.nn.relu(h_bn3)  # [None, 4, 4, 64]
 # h_pool3 = max_pool_2x2(h_relu3) # [None, 2, 2, 64]
 
 h_conv4 = conv2d(h_relu3, W_conv4, 1) + b_conv4
 h_bn4 = tf.layers.batch_normalization(h_conv4, axis=-1, training=training, momentum=0.9)
-h_relu4 = tf.nn.relu(h_bn4) # [None, 4, 4, 64]
-h_pool4 = max_pool_2x2(h_relu4) # [None, 2, 2, 64]
+h_relu4 = tf.nn.relu(h_bn4)  # [None, 4, 4, 64]
+h_pool4 = max_pool_2x2(h_relu4)  # [None, 2, 2, 64]
 
-h_pool4_flat = tf.reshape(h_pool4, [-1, 256]) # [None, 256]
+h_pool4_flat = tf.reshape(h_pool4, [-1, 256])  # [None, 256]
 
 h_fc1 = tf.matmul(h_pool4_flat, W_fc1) + b_fc1
 # h_drop_fc1 = tf.nn.dropout(h_fc1, keep_prob=0.5)
 h_bn_fc1 = tf.layers.batch_normalization(h_fc1, axis=-1, training=training, momentum=0.9)
-h_relu_fc1 = tf.nn.relu(h_bn_fc1) # [None, 256]
-    
+h_relu_fc1 = tf.nn.relu(h_bn_fc1)  # [None, 256]
+
 h_fc2 = tf.matmul(h_relu_fc1, W_fc2) + b_fc2
 # h_drop_fc2 = tf.nn.dropout(h_fc2, keep_prob=0.5)
 h_bn_fc2 = tf.layers.batch_normalization(h_fc2, axis=-1, training=training, momentum=0.9)
-h_relu_fc2 = tf.nn.relu(h_bn_fc2) # [None, 256]
+h_relu_fc2 = tf.nn.relu(h_bn_fc2)  # [None, 256]
 
 # readout layer
-readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3 # [None, 5]
-
+readout = tf.matmul(h_relu_fc2, W_fc3) + b_fc3  # [None, 5]
 
 '''
 Neural Network Definitions
@@ -272,6 +277,8 @@ test_env = test_env_lib.FocusEnvTest([MAX_STEPS, MIN_ANGLE, MAX_ANGLE], [TEST_RE
 '''
 trainNetwork - the training process
 '''
+
+
 def trainNetwork():
     '''
     Training Preparations
@@ -287,8 +294,8 @@ def trainNetwork():
     Start tensorflow
     '''
     # saving and loading networks
-    saver = tf.train.Saver(max_to_keep=NETWORK_RECORD_MAX) # set max number of checkpoints
-    
+    saver = tf.train.Saver(max_to_keep=NETWORK_RECORD_MAX)  # set max number of checkpoints
+
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=PER_GPU_USAGE)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -307,166 +314,167 @@ def trainNetwork():
                 print("Successfully loaded:", checkpoint.model_checkpoint_path)
             else:
                 print("Could not find old network weights")
-    
-        epsilon = INITIAL_EPSILON # may change with t
-        t = 0 # total training steps count
-        i = 0 # num of episodes
-        test_cnt = 0 # the index of test
+
+        epsilon = INITIAL_EPSILON  # may change with t
+        t = 0  # total training steps count
+        i = 0  # num of episodes
+        test_cnt = 0  # the index of test
 
         # This file is the dqn reinforcement learning.
         # start
         while t <= NUM_TRAINING_STEPS:
             # test!
             if i % SUCCESS_RATE_TEST_STEP == 0:
-                test_cnt += 1 # update test_cnt
+                test_cnt += 1  # update test_cnt
                 success_rate, step_cost = testNetwork(test_cnt)
                 # one episode in each training environment
                 init_angle, init_img_path = train_env.reset(test_env.cur_state)
             else:
                 init_angle, init_img_path = train_env.reset()
 
-            rAll = 0 # total reward clear
-            step = 0 # stpes in one episode
-                
+            rAll = 0  # total reward clear
+            step = 0  # stpes in one episode
+
             # generate the first state, a_past is 0
             img_t = cv2.imread(init_img_path)
             img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-            s_t = np.stack((img_t, img_t, img_t) , axis=2)
+            s_t = np.stack((img_t, img_t, img_t), axis=2)
             action_t = np.stack((0.0, 0.0, 0.0), axis=0)
-	    past_info_t = action_t
+            past_info_t = action_t
             # start one episode
             while True:
                 # readout_t = readout.eval(feed_dict={s:[s_t], action:[action_t]})[0]
                 readout_t = sess.run([readout, h_pool4_flat, h_relu_fc1, h_relu_fc2], feed_dict={
-			s : [s_t], 
-			past_info : [past_info_t],
-			training : False})[0]
-	        print(past_info_t)
-                print(readout_t)                
- 
-               	action_index = 0
+                    s: [s_t],
+                    past_info: [past_info_t],
+                    training: False})[0]
+                print(past_info_t)
+                print(readout_t)
+
+                action_index = 0
                 # epsilon-greedy
                 if random.random() <= epsilon:
-                	print("----------Random Action-----------")
-                    	action_index = random.randrange(ACTIONS) 
+                    print("----------Random Action-----------")
+                    action_index = random.randrange(ACTIONS)
                 else:
-            	        action_index = np.argmax(readout_t)
-            	a_input = train_env.actions[action_index]
-            	a_t = np.zeros([ACTIONS])
-            	a_t[action_index] = 1
-            
-            	# scale down epsilon
-            	if epsilon > FINAL_EPSILON and t > OBSERVE:
-            		epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
-                
-            	# run the selected action and observe next state and reward
-            	angle_new, img_path_t1, r_t, terminal = train_env.step(a_input)
+                    action_index = np.argmax(readout_t)
+                a_input = train_env.actions[action_index]
+                a_t = np.zeros([ACTIONS])
+                a_t[action_index] = 1
+
+                # scale down epsilon
+                if epsilon > FINAL_EPSILON and t > OBSERVE:
+                    epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
+
+                # run the selected action and observe next state and reward
+                angle_new, img_path_t1, r_t, terminal = train_env.step(a_input)
 
                 # for debug
                 # print(angle_t1, img_path_t1)
-            	img_t1 = cv2.imread(img_path_t1)
-            	img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-                img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-                action_new = np.reshape(a_input/ACTION_NORM, (1,))
-            	# stack to the state information
-	        s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-                action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-	        past_info_t1 = action_t1
-            	# store the transition into D
-            	D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
-            	if len(D) > REPLAY_MEMORY:
-           	    	D.popleft()
-                    
+                img_t1 = cv2.imread(img_path_t1)
+                img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+                img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1))  # reshape, ready for insert
+                action_new = np.reshape(a_input / ACTION_NORM, (1,))
+                # stack to the state information
+                s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME - 1], axis=2)
+                action_t1 = np.append(action_new, action_t[:PAST_FRAME - 1], axis=0)
+                past_info_t1 = action_t1
+                # store the transition into D
+                D.append((s_t, past_info_t, a_t, r_t, s_t1, past_info_t1, terminal))
+                if len(D) > REPLAY_MEMORY:
+                    D.popleft()
+
                 '''
                 Training
                 '''
-            	# only train if done observing
-            	if t > OBSERVE:
-            		# sample a minibatch to train on
-            	    minibatch = random.sample(D, BATCH)
+                # only train if done observing
+                if t > OBSERVE:
+                    # sample a minibatch to train on
+                    minibatch = random.sample(D, BATCH)
 
-            	    # get the batch variables
-            	    s_j_batch = [d[0] for d in minibatch]
+                    # get the batch variables
+                    s_j_batch = [d[0] for d in minibatch]
                     past_info_j_batch = [d[1] for d in minibatch]
-            	    a_batch = [d[2] for d in minibatch]
-            	    r_batch = [d[3] for d in minibatch]
-            	    s_j1_batch = [d[4] for d in minibatch]
+                    a_batch = [d[2] for d in minibatch]
+                    r_batch = [d[3] for d in minibatch]
+                    s_j1_batch = [d[4] for d in minibatch]
                     past_info_j1_batch = [d[5] for d in minibatch]
 
-            	    y_batch = [] # y is TD target
-            	    readout_j1_batch = readout.eval(feed_dict = {
-		    	s : s_j1_batch, 
-			past_info : past_info_j1_batch,
-			training : False}
-		    )
-            	    for k in range(len(minibatch)):
-                	terminal_sample = minibatch[k][6]
-                	# if terminal, only equals reward
-                	if terminal_sample:
-                	   	y_batch.append(r_batch[k])
-                	else:
-                	   	y_batch.append(r_batch[k] + GAMMA * np.max(readout_j1_batch[k]))
-                                
-            	    # perform gradient step and record
-            	    if t % COST_RECORD_STEP == 0:
-                	summary_str, _ = sess.run([merged_summary_op, train_step], feed_dict = {
-                		y : y_batch,
-                		a : a_batch,
-                		s : s_j_batch,
-				past_info : past_info_j_batch,
-				training : True,
-                		accuracy : success_rate,
-                		steps : step_cost}
-                	)
-                	train_writer.add_summary(summary_str, t) # write cost to record
-            	    else:
-                	train_step.run(feed_dict = {
-                		y : y_batch,
-                		a : a_batch,
-                		s : s_j_batch,
-				past_info : past_info_j_batch,
-				training : True}
-                	)
+                    y_batch = []  # y is TD target
+                    readout_j1_batch = readout.eval(feed_dict={
+                        s: s_j1_batch,
+                        past_info: past_info_j1_batch,
+                        training: False}
+                    )
+                    for k in range(len(minibatch)):
+                        terminal_sample = minibatch[k][6]
+                        # if terminal, only equals reward
+                        if terminal_sample:
+                            y_batch.append(r_batch[k])
+                        else:
+                            y_batch.append(r_batch[k] + GAMMA * np.max(readout_j1_batch[k]))
+
+                    # perform gradient step and record
+                    if t % COST_RECORD_STEP == 0:
+                        summary_str, _ = sess.run([merged_summary_op, train_step], feed_dict={
+                            y: y_batch,
+                            a: a_batch,
+                            s: s_j_batch,
+                            past_info: past_info_j_batch,
+                            training: True,
+                            accuracy: success_rate,
+                            steps: step_cost}
+                                                  )
+                        train_writer.add_summary(summary_str, t)  # write cost to record
+                    else:
+                        train_step.run(feed_dict={
+                            y: y_batch,
+                            a: a_batch,
+                            s: s_j_batch,
+                            past_info: past_info_j_batch,
+                            training: True}
+                        )
 
                 # print info
                 state = ""
                 if t <= OBSERVE:
-                	state = "observe"
+                    state = "observe"
                 elif t > OBSERVE and t <= OBSERVE + EXPLORE:
-                	state = "explore"
+                    state = "explore"
                 else:
-                	state = "train" 
-           
+                    state = "train"
+
                 print("EPISODE", i, "/ TIMESTEP", t, "/ STEP", step, "/ STATE", state, \
-                    "/ EPSILON", epsilon, "/ CURRENT ANGLE", train_env.cur_state, \
-                    "/ ACTION", a_input, "/ REWARD", r_t, "/ Q_MAX %e" % np.max(readout_t))
-                    
-            	# update the old values
-            	s_t = s_t1
-		action_t = action_t1
+                      "/ EPSILON", epsilon, "/ CURRENT ANGLE", train_env.cur_state, \
+                      "/ ACTION", a_input, "/ REWARD", r_t, "/ Q_MAX %e" % np.max(readout_t))
+
+                # update the old values
+                s_t = s_t1
+                action_t = action_t1
                 past_info_t = action_t
-            	t += 1    # total time steps
+                t += 1  # total time steps
                 rAll += r_t
                 step += 1
-    
-            	# save progress
-            	if t % NETWORK_RECORD_STEP == 0:
-            	    saver.save(sess, SAVE_NETWORK_DIR+'/dqn', global_step = t)
 
-                if terminal:    
+                # save progress
+                if t % NETWORK_RECORD_STEP == 0:
+                    saver.save(sess, SAVE_NETWORK_DIR + '/dqn', global_step=t)
+
+                if terminal:
                     break
 
             print("TOTAL REWARD:", rAll)
             # record total reward and step in this episode
             write_reward_and_step(i, rAll, step)
-            	
-            i += 1 # update num of episodes
-        
+
+            i += 1  # update num of episodes
+
         train_writer.close()
-	sess.close()
+        sess.close()
 
     plot_data()
     return
+
 
 '''
 testNetwork - test the training performance, calculate the success rate
@@ -474,64 +482,66 @@ testNetwork - test the training performance, calculate the success rate
 Input: test_cnt
 Return: success rate
 '''
-def testNetwork(test_cnt): 
+
+
+def testNetwork(test_cnt):
     success_cnt = 0.0
     total_steps = 0.0
     # start test
     for test in range(TEST_ROUND):
         if test == 0:
-            init_angle, init_img_path = test_env.reset(train_env.cur_state, test_cnt) # init from train_env
+            init_angle, init_img_path = test_env.reset(train_env.cur_state, test_cnt)  # init from train_env
         else:
-            init_angle, init_img_path = test_env.reset() # init from last state of test_env
-                    
+            init_angle, init_img_path = test_env.reset()  # init from last state of test_env
+
         # generate the first state, a_past is 0
         img_t = cv2.imread(init_img_path)
         img_t = cv2.cvtColor(cv2.resize(img_t, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-        s_t = np.stack((img_t, img_t, img_t) , axis=2)
+        s_t = np.stack((img_t, img_t, img_t), axis=2)
         action_t = np.stack((0.0, 0.0, 0.0), axis=0)
         past_info_t = action_t
         step = 1
         # start 1 episode
         while True:
-            	# run the network forwardly
-        	readout_t = readout.eval(feed_dict={
-            		s : [s_t], 
-            		past_info : [past_info_t],
-            		training : False})[0]
-            	print(past_info_t)
-        	print(readout_t)
-        
-		# determine the next action
-        	action_index = np.argmax(readout_t)
-        	a_input = test_env.actions[action_index]
-        	# run the selected action and observe next state and reward
-        	angle_new, img_path_t1, terminal, success = test_env.test_step(a_input)
+            # run the network forwardly
+            readout_t = readout.eval(feed_dict={
+                s: [s_t],
+                past_info: [past_info_t],
+                training: False})[0]
+            print(past_info_t)
+            print(readout_t)
 
-                # print test info
-                print("TEST EPISODE", test, "/ TIMESTEP", step, \
-                    "/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
-            
-        	if terminal:
-            		# calculate
-                	success_cnt += int(success) # only represents the rate of active terminate
-                	total_steps += step
-                	break
-                    
-          	# prepare for the next iteration
- 		img_t1 = cv2.imread(img_path_t1)
-        	img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
-        	img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1)) # reshape, ready for insert
-        	action_new = np.reshape(a_input/ACTION_NORM, (1,))
-        	s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME-1], axis=2)
-        	action_t1 = np.append(action_new, action_t[:PAST_FRAME-1], axis=0)
-            	past_info_t1 = action_t1
+            # determine the next action
+            action_index = np.argmax(readout_t)
+            a_input = test_env.actions[action_index]
+            # run the selected action and observe next state and reward
+            angle_new, img_path_t1, terminal, success = test_env.test_step(a_input)
 
-        	# update
-        	s_t = s_t1
-        	action_t = action_t1
-        	past_info_t = action_t
-        	step += 1
- 
+            # print test info
+            print("TEST EPISODE", test, "/ TIMESTEP", step, \
+                  "/ CURRENT ANGLE", test_env.cur_state, "/ ACTION", a_input)
+
+            if terminal:
+                # calculate
+                success_cnt += int(success)  # only represents the rate of active terminate
+                total_steps += step
+                break
+
+            # prepare for the next iteration
+            img_t1 = cv2.imread(img_path_t1)
+            img_t1 = cv2.cvtColor(cv2.resize(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)
+            img_t1 = np.reshape(img_t1, (RESIZE_WIDTH, RESIZE_HEIGHT, 1))  # reshape, ready for insert
+            action_new = np.reshape(a_input / ACTION_NORM, (1,))
+            s_t1 = np.append(img_t1, s_t[:, :, :PAST_FRAME - 1], axis=2)
+            action_t1 = np.append(action_new, action_t[:PAST_FRAME - 1], axis=0)
+            past_info_t1 = action_t1
+
+            # update
+            s_t = s_t1
+            action_t = action_t1
+            past_info_t = action_t
+            step += 1
+
     success_rate = success_cnt / TEST_ROUND
     step_cost = total_steps / TEST_ROUND
 
@@ -544,9 +554,11 @@ write_reward_and_step - write those two information in one episode to txt file
 
 Note: if it's the first episode(i = 0), need to erase the past data completely.
 '''
+
+
 def write_reward_and_step(i, rAll, step):
     # finish one episode, record this step
-    if i == 0: # first time
+    if i == 0:  # first time
         with open(FILE_REWARD, 'w') as f:
             txtData = str(rAll) + '\n'
             f.write(txtData)
@@ -571,6 +583,8 @@ plot_reward - plot rList and stepList
 Input: rList - the record of reward changing
        stepList - the record of steps
 '''
+
+
 def plot_data():
     rList = []
     stepList = []
@@ -596,7 +610,6 @@ def plot_data():
     plt.xlabel('episode({})'.format(STEP_RECORD_STEP))
     plt.ylabel('steps')
 
-
     # save this figure
     plt.savefig(TRAIN_DIR + '/result_' + str(VERSION), dpi=600)
     return
@@ -605,11 +618,13 @@ def plot_data():
 '''
 record_end_focus
 '''
+
+
 def record_end_focus(test_cnt, success_rate, step_cost):
     save_pic_path = os.path.join(TEST_RESULT_PATH, str(test_cnt))
     print(save_pic_path)
     # write success rate and average steps to txt file
-    txtFile = os.path.join(save_pic_path, 'result.txt') 
+    txtFile = os.path.join(save_pic_path, 'result.txt')
     with open(txtFile, 'w') as f:
         Data = "success rate:" + str(success_rate) + " step per episode:" + str(step_cost)
         f.write(Data)
@@ -625,32 +640,32 @@ def record_end_focus(test_cnt, success_rate, step_cost):
     for root, dirs, files in os.walk(save_pic_path):
         for dir in dirs:
             epiDirs.append(dir)
-    epiDirs.sort(key=lambda obj:int(obj)) # only process dirs, sort episode dirs
+    epiDirs.sort(key=lambda obj: int(obj))  # only process dirs, sort episode dirs
 
     # walk through the folder
     for index in range(len(epiDirs)):
-        imageList = [] # clear list
+        imageList = []  # clear list
         # get into one episode directory
         for root, dirs, files in os.walk(os.path.join(save_pic_path, epiDirs[index])):
             for file in files:
-                    if os.path.splitext(file)[1] == '.jpg':
-                        imageList.append(file)
+                if os.path.splitext(file)[1] == '.jpg':
+                    imageList.append(file)
         # print(imageList)
         # sort
-        imageList.sort(key=lambda obj:int(obj.split('_')[0])) # sort image list
-        fList = [] # clear the list
+        imageList.sort(key=lambda obj: int(obj.split('_')[0]))  # sort image list
+        fList = []  # clear the list
         print(os.path.join(save_pic_path, epiDirs[index]))
         # walk through the images   
         for i in range(len(imageList)):
             img_path = save_pic_path + '/' + epiDirs[index] + '/' + imageList[i]
-            print("processing %s" %img_path)
+            print("processing %s" % img_path)
             focus = TENG(img_path)
             fList.append(focus)
         # plot focus changing in one episode
         plot_focus_in_one_episode(os.path.join(save_pic_path, epiDirs[index]), index, fList)
-    	print(fList)
-    	endfList.append(fList[-1]) # add the final focus to endfList
-    	stepList.append(len(imageList))
+        print(fList)
+        endfList.append(fList[-1])  # add the final focus to endfList
+        stepList.append(len(imageList))
     # endf for
     plot_histogram(save_pic_path, endfList, stepList)
     return
@@ -659,18 +674,23 @@ def record_end_focus(test_cnt, success_rate, step_cost):
 '''
 plot focus in one episode
 '''
+
+
 def plot_focus_in_one_episode(epipath, p, fList):
     plt.figure()
     plt.plot(fList, 'bx-')
     plt.xlabel("ops")
     plt.ylabel("Focus Measure")
     plt.title("Focus Changing in episode {}".format(p))
-    plt.savefig(epipath + "/f_change", dpi=600) 
+    plt.savefig(epipath + "/f_change", dpi=600)
     # plt.show() 
+
 
 '''
 plot histogram of end focus measure and steps
 '''
+
+
 def plot_histogram(save_pic_path, endfList, stepList):
     # plot focus histogram
     print(endfList)
@@ -697,70 +717,77 @@ def plot_histogram(save_pic_path, endfList, stepList):
 layout_dashboard - call once to init the dashboard
                    or nothing displays on the website
 '''
+
+
 def layout_dashboard(writer):
     from tensorboard import summary
     from tensorboard.plugins.custom_scalar import layout_pb2
-    
+
     # This action does not have to be performed at every step, so the action is not
     # taken care of by an op in the graph. We only need to specify the layout once. 
     # We only need to specify the layout once (instead of per step).
     layout_summary = summary.custom_scalar_pb(layout_pb2.Layout(
         category=[
             layout_pb2.Category(
-            title='losses',
-            chart=[
-                layout_pb2.Chart(
-                    title='losses',
-                    multiline=layout_pb2.MultilineChartContent(
-                    tag=[r'loss.*'],
-                )),
-                layout_pb2.Chart(
-                    title='baz',
-                    margin=layout_pb2.MarginChartContent(
-                    series=[
-                        layout_pb2.MarginChartContent.Series(
-                        value='loss/baz/scalar_summary',
-                        lower='baz_lower/baz/scalar_summary',
-                        upper='baz_upper/baz/scalar_summary'),
-                    ],
-                )), 
-            ]),
+                title='losses',
+                chart=[
+                    layout_pb2.Chart(
+                        title='losses',
+                        multiline=layout_pb2.MultilineChartContent(
+                            tag=[r'loss.*'],
+                        )),
+                    layout_pb2.Chart(
+                        title='baz',
+                        margin=layout_pb2.MarginChartContent(
+                            series=[
+                                layout_pb2.MarginChartContent.Series(
+                                    value='loss/baz/scalar_summary',
+                                    lower='baz_lower/baz/scalar_summary',
+                                    upper='baz_upper/baz/scalar_summary'),
+                            ],
+                        )),
+                ]),
             layout_pb2.Category(
-            title='trig functions',
-            chart=[
-                layout_pb2.Chart(
-                    title='wave trig functions',
-                    multiline=layout_pb2.MultilineChartContent(
-                    tag=[r'trigFunctions/cosine', r'trigFunctions/sine'],
-                )),
-                # The range of tangent is different. Let's give it its own chart.
-                layout_pb2.Chart(
-                    title='tan',
-                    multiline=layout_pb2.MultilineChartContent(
-                    tag=[r'trigFunctions/tangent'],
-                )),
-            ],
-        # This category we care less about. Let's make it initially closed.
-        closed=True),
-    ]))
+                title='trig functions',
+                chart=[
+                    layout_pb2.Chart(
+                        title='wave trig functions',
+                        multiline=layout_pb2.MultilineChartContent(
+                            tag=[r'trigFunctions/cosine', r'trigFunctions/sine'],
+                        )),
+                    # The range of tangent is different. Let's give it its own chart.
+                    layout_pb2.Chart(
+                        title='tan',
+                        multiline=layout_pb2.MultilineChartContent(
+                            tag=[r'trigFunctions/tangent'],
+                        )),
+                ],
+                # This category we care less about. Let's make it initially closed.
+                closed=True),
+        ]))
     writer.add_summary(layout_summary)
 
 
 '''
 Tenengrad
 '''
+
+
 def TENG(img_path):
-    img = cv2.imread(img_path) # read pic
-    img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY) # resize
+    img = cv2.imread(img_path)  # read pic
+    img = cv2.cvtColor(cv2.resize(img, (RESIZE_WIDTH, RESIZE_HEIGHT)), cv2.COLOR_BGR2GRAY)  # resize
     guassianX = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     guassianY = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     return numpy.mean(guassianX * guassianX + guassianY * guassianY)
+
+
 ###################################################################################
 # Main
 ###################################################################################
 def main():
-    	# start real training!
-    	trainNetwork()
+    # start real training!
+    trainNetwork()
+
 
 if __name__ == "__main__":
-	main()
+    main()
