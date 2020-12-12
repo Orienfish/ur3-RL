@@ -4,7 +4,7 @@ This repo includes the key implementation of our paper "A Robotic Auto-Focus Sys
 
 ## Overview
 Auto-focus has wide applications in diseases diagnoises. The contribution of our work can be summarized as follows:
-1. We introduce an end-to-end method that directly processes vision input (microscopic view) and selects an optimal action to screw the focusing knob. Previous solutions to auto-focus problems contains two distinct stages: the focus measure functions that map an image to a value for representing the degree of focus of the image, and the search algorithms that iteratively move the lens to find the highest or nearest peak of focus measure curves. Here in our paper, we combine those two stages into one, which enables the agent to complete "perception" and "control" as a whole. 
+1. We introduce an end-to-end method that directly processes vision input (microscopic view) and selects an optimal action to screw the focusing knob. Previous solutions to auto-focus problems contains two distinct stages: the focus measure functions that map an image to a value for representing the degree of focus of the image, and the search algorithms that iteratively move the lens to find the highest or nearest peak of focus measure curves. Here in our paper, we combine those two stages into one, which enables the agent to complete "perception" and "control" as a whole.
 2. We formulate the auto-focus problem into a model-free decision-making task analogous to Atari games: we discretize state and action space to apply Deep Q Network (DQN). DQN directly processes high-dimensional input and learns policies through trials and errors. This could be a general approach in vision-based control problems.
 3. We design the reward function according to focus measure functions and more importantly, we define an active termination condition which expects the agent to stop at a clear spot automaticly.
 
@@ -38,13 +38,13 @@ Distribution of focus positions regarding both the virtually-trained model and r
 ├── deep_q_network_real_train.py // DQN for practical training.
 ├── realenv_train.py          // Python class for real training environment. Interact with deep_q_network_real_train.py.
 ├── deep_q_network_real_test.py // DQN for practical testing.
-└── realenv_test.py           // Python class for real testing environment. Interact with deep_q_network_real_test.py. 
+└── realenv_test.py           // Python class for real testing environment. Interact with deep_q_network_real_test.py.
 ```
 As you can see, all the files can be divided into two groups: one is for **Reinforcement Learning (RL)** in both virtual and practical environment, the other is for **collecting data** to construct virtual environment. The RL group locates right under the root directory while the collecting code group is under "collect" directory. <br>
 
 * What we mean by **"collecting data"** here is sampling discrete microscopic views with a fixed step and number them with the absolution angle of focusing knob. To help you get an intuitive idea of what we collect here, I attached a focus measure curve of all the views here: <br>
 <div align=center><img width="350" height="280" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/new_grp1_focus.png"/></div>
-It's important to make sure that we get the complete region from blur to clear and to blur again. Due to the large file size, unfortunately, I didn't upload the dateset we collected here on Github. Feel free to contact me if you are interested in those data. <br> <br>
+It's important to make sure that we get the complete region from blur to clear and to blur again. The dataset can be found [here](https://drive.google.com/file/d/1EoT0gTA8xGZOwDQ0_YXXxAgwPU1694Bj/view?usp=sharing) on our Google Drive. Feel free to contact me if you are not able to access. <br> <br>
 
 * The **RL** code mainly constructs a *DQN* and triggers as well as monitors the learning process. The structure of our DQN is shown in the following figure. The whole network contains 381K parameters and requires 13.8M multiply-accumulate operations in each update (if I'm not making calculation errors lol).
 <div align=center><img width="800" height="250" src="https://github.com/Orienfish/ur3-RL/blob/master/pic/network.png"/></div>
